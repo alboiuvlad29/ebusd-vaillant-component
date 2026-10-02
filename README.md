@@ -69,7 +69,28 @@ See [Options](https://signalkraft.com/ebusd-vaillant-component/options/) for the
 
 ## Services
 
-The integration exposes two diagnostic services:
+Services for automations (targets are this integration's climate or water heater
+entities):
+
+- `ebusd_vaillant.set_quick_veto` (`temperature`, optional `duration_hours`) and
+  `ebusd_vaillant.cancel_quick_veto`: heating boost for a zone
+- `ebusd_vaillant.set_away` (`start_date`, `end_date`) and `ebusd_vaillant.cancel_away`:
+  away mode for zones and hot water
+- `ebusd_vaillant.hot_water_boost` (optional `enable`, default on): start or cancel a
+  one-time hot water charge
+
+Example:
+
+```yaml
+action: ebusd_vaillant.set_quick_veto
+target:
+  entity_id: climate.vaillant_zone_1
+data:
+  temperature: 22.5
+  duration_hours: 2
+```
+
+The integration also exposes two diagnostic services:
 
 - `ebusd_vaillant.dump_mqtt_values`  -  returns all accumulated MQTT values as YAML
 - `ebusd_vaillant.record_topic_changes`  -  listens for `timeout` seconds and returns received topic values

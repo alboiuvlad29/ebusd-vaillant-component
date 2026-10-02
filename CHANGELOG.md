@@ -2,6 +2,12 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.12.0
+
+- Services for automations: `set_quick_veto` / `cancel_quick_veto` (zones, with an
+  optional duration), `set_away` / `cancel_away` (zones and hot water, with dates) and
+  `hot_water_boost` (start or cancel). Selectors and English/German translations included.
+
 ## 1.11.0
 
 - **Boost is no longer a hot water mode.** The water heater's operation list shows only

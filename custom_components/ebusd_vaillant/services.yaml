@@ -20,3 +20,69 @@ record_topic_changes:
           min: 1
           max: 3600
           unit_of_measurement: s
+
+set_quick_veto:
+  target:
+    entity:
+      integration: ebusd_vaillant
+      domain: climate
+  fields:
+    temperature:
+      required: true
+      selector:
+        number:
+          min: 5
+          max: 30
+          step: 0.5
+          unit_of_measurement: "°C"
+    duration_hours:
+      required: false
+      selector:
+        number:
+          min: 0.5
+          max: 24
+          step: 0.5
+          unit_of_measurement: h
+
+cancel_quick_veto:
+  target:
+    entity:
+      integration: ebusd_vaillant
+      domain: climate
+
+set_away:
+  target:
+    entity:
+      integration: ebusd_vaillant
+      domain:
+        - climate
+        - water_heater
+  fields:
+    start_date:
+      required: true
+      selector:
+        date:
+    end_date:
+      required: true
+      selector:
+        date:
+
+cancel_away:
+  target:
+    entity:
+      integration: ebusd_vaillant
+      domain:
+        - climate
+        - water_heater
+
+hot_water_boost:
+  target:
+    entity:
+      integration: ebusd_vaillant
+      domain: water_heater
+  fields:
+    enable:
+      required: false
+      default: true
+      selector:
+        boolean:

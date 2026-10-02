@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.components import mqtt
@@ -15,6 +15,7 @@ from homeassistant.components.water_heater import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
@@ -30,6 +31,7 @@ from .const import (
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
 from .discovery import DiscoveredWaterHeater, TopicConfig, _get, mode_vocab_from_value
+from .services import register_entity, unregister_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -130,10 +132,35 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             await self._subscribe(self._config.sf_mode, self._handle_sf_mode)
         self._seed_from_coordinator()
         self.async_write_ha_state()
+        register_entity(self.hass, self)
 
     async def async_will_remove_from_hass(self) -> None:
+        unregister_entity(self.hass, self)
         for unsub in self._unsubscribe:
             unsub()
+
+    # --- services (services.py) ---
+
+    async def async_service_set_away(self, start_date: date, end_date: date) -> None:
+        for cfg, day in (
+            (self._config.holiday_start, start_date),
+            (self._config.holiday_end, end_date),
+        ):
+            if cfg and cfg.write_topic:
+                await self._publish(cfg.write_topic, day.strftime(_DATE_FMT))
+
+    async def async_service_cancel_away(self) -> None:
+        await self.async_turn_away_mode_off()
+
+    async def async_service_hot_water_boost(self, enable: bool = True) -> None:
+        cfg = self._config.sf_mode
+        if not cfg or not cfg.write_topic:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_hot_water_boost",
+                translation_placeholders={"entity_id": self.entity_id},
+            )
+        await self._publish(cfg.write_topic, "load" if enable else "auto")
 
     async def async_update_config(self, config: DiscoveredWaterHeater) -> None:
         if config.holiday_start and not self._config.holiday_start:
