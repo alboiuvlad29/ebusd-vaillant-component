@@ -140,3 +140,38 @@ async def test_services_removed_on_unload(hass, entry):
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert not hass.services.has_service(DOMAIN, "set_quick_veto")
+
+
+async def test_area_target_skips_foreign_entities(hass, entry, mqtt_client_mock):
+    """An area with a zone and another integration's thermostat still sets the zone."""
+    from homeassistant.helpers import area_registry as ar
+    from pytest_homeassistant_custom_component.common import MockEntity, MockEntityPlatform
+
+    area = ar.async_get(hass).async_create("Living room")
+    registry = er.async_get(hass)
+    registry.async_update_entity(ZONE, area_id=area.id)
+    other = registry.async_get_or_create("climate", "other", "trv1", suggested_object_id="trv")
+    registry.async_update_entity(other.entity_id, area_id=area.id)
+    platform = MockEntityPlatform(hass, domain="climate", platform_name="other")
+    await platform.async_add_entities([MockEntity(unique_id="trv1", name="trv")])
+
+    out = await _call(
+        hass,
+        mqtt_client_mock,
+        "set_away",
+        {"area_id": area.id, "start_date": "2026-12-20", "end_date": "2027-01-03"},
+    )
+    assert out[f"{C}/Z1HolidayStartPeriod/set"] == "20.12.2026"
+
+
+async def test_target_without_matching_entity_is_rejected(hass, entry):
+    from homeassistant.helpers import area_registry as ar
+
+    area = ar.async_get(hass).async_create("Empty room")
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "cancel_away",
+            {"area_id": area.id},
+            blocking=True,
+        )

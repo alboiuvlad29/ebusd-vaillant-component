@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.const import ATTR_TEMPERATURE
+from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
@@ -96,16 +96,27 @@ def async_register_services(hass: HomeAssistant) -> None:
         method = _METHODS[call.service]
         # by the current entity ID, so renamed entities keep working
         entities = {e.entity_id: e for e in hass.data.get(_ENTITIES_KEY, set())}
+        # Entities named explicitly must support the service. Entities pulled in by an
+        # area, device or label target are skipped when they don't (e.g. a TRV from
+        # another integration in the same room).
+        explicit = set(call.data.get(ATTR_ENTITY_ID) or [])
         targets = []
         for entity_id in sorted(await async_extract_entity_ids(hass, call)):
             entity = entities.get(entity_id)
-            if entity is None or not hasattr(entity, method):
+            if entity is not None and hasattr(entity, method):
+                targets.append(entity)
+            elif entity_id in explicit:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="unsupported_entity",
                     translation_placeholders={"entity_id": entity_id, "service": call.service},
                 )
-            targets.append(entity)
+        if not targets:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_matching_entities",
+                translation_placeholders={"service": call.service},
+            )
         data = {k: v for k, v in call.data.items() if k not in cv.ENTITY_SERVICE_FIELDS}
         for entity in targets:
             await getattr(entity, method)(**data)
