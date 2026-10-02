@@ -196,7 +196,7 @@ async def test_single_target_without_cooling(hass, mqtt_mock):
     await _fire(hass, _zone("Z1DayTemp", "day", **NO_COOLING))
     state = _climate(hass)
     assert state.attributes["temperature"] == 20.5
-    assert "target_temp_high" not in state.attributes or state.attributes["target_temp_high"] is None
+    assert state.attributes.get("target_temp_high") is None
     assert HVACMode.COOL not in state.attributes["hvac_modes"]
 
 
@@ -245,9 +245,7 @@ async def test_pending_target_expires(hass, mqtt_mock, mqtt_client_mock, freezer
 
 async def test_manual_mode_shows_setpoint_not_desired(hass, mqtt_mock):
     await _setup(hass)
-    await _fire(
-        hass, _zone("Z1ManualTemp", "manual", **NO_COOLING, **{f"{CTL}/Z1TempDesired": 19})
-    )
+    await _fire(hass, _zone("Z1ManualTemp", "manual", **NO_COOLING, **{f"{CTL}/Z1TempDesired": 19}))
     assert _climate(hass).attributes["temperature"] == 20.5
 
 
