@@ -19,14 +19,18 @@ from .const import (
     _DISCOVERY_TOPICS_ZONE,
     CONF_COOLING,
     CONF_MAX_ZONES,
-    CONF_PRIME_VALUES,
     CONF_ZONES_WITH_TEMP_ONLY,
     DEFAULT_COOLING,
     DEFAULT_MANUFACTURER,
     DEFAULT_MAX_ZONES,
-    DEFAULT_PRIME_VALUES,
     DEFAULT_ZONES_WITH_TEMP_ONLY,
     DISCOVERY_DEVICE_NAMES,
+    ESSENTIAL_SENSOR_TOPICS,
+    POLL_PRIMING_ALL,
+    POLL_PRIMING_OFF,
+    PRIORITY_FAST,
+    PRIORITY_SLOW,
+    poll_priming,
 )
 from .discovery import (
     DiscoveredClimate,
@@ -103,7 +107,7 @@ class EbusdCoordinator:
             self._hass, f"{self._prefix}/#", self._handle_message
         )
         _LOGGER.debug("ebusd coordinator: listening on %s/#", self._prefix)
-        if self._entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES):
+        if poll_priming(self._entry.options) != POLL_PRIMING_OFF:
             self._schedule_task(self._discovery_prime(), "ebusd discovery prime")
 
     async def _discovery_prime(self) -> None:
@@ -181,7 +185,7 @@ class EbusdCoordinator:
         entities = self._analyze()
         if entities:
             listener(entities)
-            if self._entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES):
+            if poll_priming(self._entry.options) != POLL_PRIMING_OFF:
                 self._schedule_task(self._prime_values(entities), "ebusd prime values")
 
     def _analyze(self) -> list[DiscoveredEntity]:
@@ -197,72 +201,106 @@ class EbusdCoordinator:
             cooling_mode=options.get(CONF_COOLING, DEFAULT_COOLING),
         )
 
-    def _collect_read_topics(self, entities: list[DiscoveredEntity]) -> set[str]:
-        """Collect all unique read topics from discovered entities."""
-        topics: set[str] = set()
+    def _collect_read_topics(self, entities: list[DiscoveredEntity]) -> dict[str, bool]:
+        """Map each read topic the entities use to whether it is essential (fast poll).
+
+        The heat pump activity messages (hmu Status00/01/07) are left out: ebusd
+        overhears them on the bus, polling them would only add traffic.
+        """
+        topics: dict[str, bool] = {}
+
+        def add(cfgs: list, essential: bool) -> None:
+            for cfg in cfgs:
+                if cfg is not None:
+                    topics[cfg.read_topic] = topics.get(cfg.read_topic, False) or essential
+
         for entity in entities:
             if isinstance(entity, DiscoveredSensor):
-                topics.add(entity.topic.read_topic)
-                continue
-            if isinstance(entity, DiscoveredWaterHeater):
-                topic_attrs = [
-                    entity.mode,
-                    entity.target_temperature,
-                    entity.current_temperature,
-                    entity.sf_mode,
-                    entity.holiday_start,
-                    entity.holiday_end,
-                    entity.holiday_start_time,
-                    entity.holiday_end_time,
-                ]
+                name = entity.topic.read_topic.rsplit("/", 1)[-1]
+                add([entity.topic], name in ESSENTIAL_SENSOR_TOPICS)
+            elif isinstance(entity, DiscoveredWaterHeater):
+                add(
+                    [
+                        entity.mode,
+                        entity.target_temperature,
+                        entity.current_temperature,
+                        entity.sf_mode,
+                    ],
+                    True,
+                )
+                add(
+                    [
+                        entity.holiday_start,
+                        entity.holiday_end,
+                        entity.holiday_start_time,
+                        entity.holiday_end_time,
+                    ],
+                    False,
+                )
             elif isinstance(entity, DiscoveredFlowTempRange):
-                topic_attrs = [
-                    entity.min_flow_temp,
-                    entity.max_flow_temp,
-                    entity.current_flow_temp,
-                    entity.run_data_status,
-                ]
+                add(
+                    [
+                        entity.min_flow_temp,
+                        entity.max_flow_temp,
+                        entity.current_flow_temp,
+                        entity.run_data_status,
+                    ],
+                    False,
+                )
             elif isinstance(entity, DiscoveredCoolTempLimit):
-                topic_attrs = [
-                    entity.cool_temp,
-                    entity.run_data_status,
-                ]
+                add([entity.cool_temp, entity.run_data_status], False)
             else:  # DiscoveredClimate
-                topic_attrs = [
-                    entity.mode,
-                    entity.current_temperature,
-                    entity.target_temperature,
-                    entity.target_temperature_high,
-                    entity.target_temperature_low,
-                    entity.holiday_start,
-                    entity.holiday_end,
-                    entity.holiday_start_time,
-                    entity.holiday_end_time,
-                    entity.quick_veto_temp,
-                    entity.quick_veto_duration,
-                    entity.quick_veto_end_date,
-                    entity.quick_veto_end_time,
-                    entity.run_data_status,
-                    entity.hc_status,
-                    entity.manual_temperature,
-                    entity.temp_desired,
-                    entity.zone_status,
-                    *([cfg for _, cfg in entity.activity.items()] if entity.activity else []),
-                ]
-            for cfg in topic_attrs:
-                if cfg is not None:
-                    topics.add(cfg.read_topic)
+                add(
+                    [
+                        entity.mode,
+                        entity.current_temperature,
+                        entity.target_temperature,
+                        entity.target_temperature_high,
+                        entity.target_temperature_low,
+                        entity.manual_temperature,
+                        entity.temp_desired,
+                        entity.quick_veto_temp,
+                        entity.quick_veto_duration,
+                    ],
+                    True,
+                )
+                add(
+                    [
+                        entity.holiday_start,
+                        entity.holiday_end,
+                        entity.holiday_start_time,
+                        entity.holiday_end_time,
+                        entity.quick_veto_end_date,
+                        entity.quick_veto_end_time,
+                        entity.run_data_status,
+                        entity.hc_status,
+                        entity.zone_status,
+                    ],
+                    False,
+                )
         return topics
 
-    async def _prime_values(self, entities: list[DiscoveredEntity]) -> None:
-        """Publish ?1 to /get topics to prime polling priority for all known values."""
+    def _priming_plan(self, entities: list[DiscoveredEntity]) -> list[tuple[str, str]]:
+        """(read topic, priority) pairs to publish, essentials first."""
+        mode = poll_priming(self._entry.options)
+        if mode == POLL_PRIMING_OFF:
+            return []
         topics = self._collect_read_topics(entities)
-        for topic in topics:
+        plan = [
+            (topic, PRIORITY_FAST if essential or mode == POLL_PRIMING_ALL else PRIORITY_SLOW)
+            for topic, essential in topics.items()
+        ]
+        plan.sort(key=lambda item: (item[1] != PRIORITY_FAST, item[0]))
+        return plan
+
+    async def _prime_values(self, entities: list[DiscoveredEntity]) -> None:
+        """Publish ?1/?5 to /get topics so ebusd keeps polling the values in use."""
+        for topic, priority in self._priming_plan(entities):
             if self._stopping:
                 return
             get_topic = f"{topic}/get"
-            _LOGGER.debug("Priming value: %s", get_topic)
-            await mqtt.async_publish(self._hass, get_topic, "?1")
+            _LOGGER.debug("Priming value: %s %s", get_topic, priority)
+            await mqtt.async_publish(self._hass, get_topic, priority)
 
     @callback
     def _handle_message(self, msg: mqtt.ReceiveMessage) -> None:
@@ -291,5 +329,5 @@ class EbusdCoordinator:
         _LOGGER.debug("Discovered entities: %s", sorted(e.name for e in entities))
         for listener in self._listeners:
             listener(entities)
-        if self._entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES):
+        if poll_priming(self._entry.options) != POLL_PRIMING_OFF:
             self._schedule_task(self._prime_values(entities), "ebusd prime values")

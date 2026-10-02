@@ -80,19 +80,19 @@
           "away_mode_duration": "Durée par défaut du mode absence (jours)",
           "quick_veto_duration": "Durée par défaut du veto rapide (heures)",
           "max_zones": "Nombre de zones",
-          "prime_poll_values": "Découvrir les appareils au démarrage",
           "zones_with_temp_only": "Uniquement les zones avec une mesure de température",
           "cooling": "Refroidissement",
-          "temperature_write": "Changements de température"
+          "temperature_write": "Changements de température",
+          "poll_priming": "Priorités d'interrogation"
         },
         "data_description": {
           "away_mode_duration": "Nombre de jours dure le mode absence lorsqu'il est activé (par défaut : 7)",
           "quick_veto_duration": "Nombre d'heures dure le veto rapide lorsqu'il est déclenché (par défaut : 3)",
           "max_zones": "Limite le nombre d'entités de zone créées (par défaut : 4)",
-          "prime_poll_values": "Tente de demander les noms de sujets MQTT typiques pour pouvoir afficher les valeurs immédiatement au démarrage. Si désactivé, les entités deviennent disponibles au fur et à mesure que les valeurs MQTT sont publiées (par défaut : activé)",
           "zones_with_temp_only": "Lorsqu'activé (par défaut), seules les entités climatiques pour les zones qui signalent une température actuelle sont créées. Lorsque désactivé, des entités sont créées pour toutes les zones jusqu'au maximum configuré.",
           "cooling": "Indique si les zones proposent le refroidissement (plage chaud/froid et mode froid). Auto décide selon ce que le système signale, p. ex. Hc1CoolingEnabled ou le rendement de refroidissement. Sans refroidissement, chaque zone a une seule consigne.",
-          "temperature_write": "Ce qu'écrit un changement de consigne. Intelligent : la consigne permanente en mode Manuel, un veto rapide temporaire en mode Programmé. Toujours veto rapide : comportement avant 1.1.0."
+          "temperature_write": "Ce qu'écrit un changement de consigne. Intelligent : la consigne permanente en mode Manuel, un veto rapide temporaire en mode Programmé. Toujours veto rapide : comportement avant 1.1.0.",
+          "poll_priming": "Les valeurs que l'intégration fait interroger par ebusd, et à quelle fréquence. Essentiel rapide : modes, consignes, températures ambiante et ECS, boost et puissance rapidement (?1), le reste lentement (?5). Tout rapide : toutes les valeurs à ?1. Arrêt : seulement l'interrogation propre d'ebusd."
         }
       }
     }
@@ -109,6 +109,13 @@
       "options": {
         "smart": "Intelligent (Manuel : consigne, Programmé : veto rapide)",
         "quick_veto": "Toujours veto rapide"
+      }
+    },
+    "poll_priming": {
+      "options": {
+        "essentials": "Essentiel rapide, reste lent",
+        "all": "Tout rapide",
+        "off": "Arrêt"
       }
     }
   }

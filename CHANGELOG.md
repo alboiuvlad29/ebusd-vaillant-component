@@ -2,6 +2,16 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.5.0
+
+- Smarter polling priorities. The on/off option **Prime poll values** is replaced by
+  **Polling priorities**: `essentials` (default) asks ebusd to poll modes, setpoints,
+  room and hot water temperatures, boost and current power / daily yields at `?1` and
+  everything else at `?5`; `all` polls everything at `?1` (the old "on"); `off` sends no
+  requests (the old "off"). An existing `prime_poll_values` setting keeps working until
+  the options are saved. The heat pump status messages are no longer polled, since ebusd
+  overhears them. See the docs for matching ebusd add-on options.
+
 ## 1.4.0
 
 - Truthful `hvac_action`: zones no longer show Heating while the heat pump is idle. The

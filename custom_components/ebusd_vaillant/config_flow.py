@@ -20,7 +20,7 @@ from .const import (
     CONF_MAX_ZONES,
     CONF_MQTT_PREFIX,
     CONF_NAME,
-    CONF_PRIME_VALUES,
+    CONF_POLL_PRIMING,
     CONF_QUICK_VETO_DURATION,
     CONF_QUICK_VETO_TEMP,
     CONF_TEMPERATURE_WRITE,
@@ -31,13 +31,14 @@ from .const import (
     DEFAULT_MAX_ZONES,
     DEFAULT_MQTT_PREFIX,
     DEFAULT_NAME,
-    DEFAULT_PRIME_VALUES,
     DEFAULT_QUICK_VETO_DURATION,
     DEFAULT_QUICK_VETO_TEMP,
     DEFAULT_TEMPERATURE_WRITE,
     DEFAULT_ZONES_WITH_TEMP_ONLY,
     DOMAIN,
+    POLL_PRIMING_OPTIONS,
     TEMPERATURE_WRITE_OPTIONS,
+    poll_priming,
 )
 
 STEP_USER_SCHEMA = vol.Schema(
@@ -115,9 +116,13 @@ class EbusdVaillantOptionsFlow(OptionsFlow):
                     default=self._config_entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=4)),
                 vol.Optional(
-                    CONF_PRIME_VALUES,
-                    default=self._config_entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES),
-                ): bool,
+                    CONF_POLL_PRIMING,
+                    default=poll_priming(self._config_entry.options),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=POLL_PRIMING_OPTIONS, translation_key=CONF_POLL_PRIMING
+                    )
+                ),
                 vol.Optional(
                     CONF_ZONES_WITH_TEMP_ONLY,
                     default=self._config_entry.options.get(

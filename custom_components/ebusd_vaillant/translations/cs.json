@@ -80,19 +80,19 @@
           "away_mode_duration": "Výchozí doba režimu nepřítomnosti (dny)",
           "quick_veto_duration": "Výchozí doba rychlého veta (hodiny)",
           "max_zones": "Počet zón",
-          "prime_poll_values": "Objevit zařízení při spuštění",
           "zones_with_temp_only": "Pouze zóny s naměřenou teplotou",
           "cooling": "Chlazení",
-          "temperature_write": "Změny teploty"
+          "temperature_write": "Změny teploty",
+          "poll_priming": "Priority dotazování"
         },
         "data_description": {
           "away_mode_duration": "Počet dní, po které trvá režim nepřítomnosti při aktivaci (výchozí: 7)",
           "quick_veto_duration": "Počet hodin, po které trvá rychlé veto při spuštění (výchozí: 3)",
           "max_zones": "Omezuje, kolik entit zón je vytvořeno (výchozí: 4)",
-          "prime_poll_values": "Pokusí se vyžádat typické názvy MQTT témat, aby bylo možné zobrazit hodnoty okamžitě při spuštění. Pokud je zakázáno, entity se zpřístupní, jakmile jsou publikovány hodnoty MQTT (výchozí: zapnuto)",
           "zones_with_temp_only": "Pokud je povoleno (výchozí), jsou vytvořeny klimatické entity pouze pro zóny, které hlásí aktuální teplotu. Pokud je zakázáno, jsou entity vytvořeny pro všechny zóny až do nakonfigurovaného maxima.",
           "cooling": "Zda zóny nabízejí chlazení (rozsah topení/chlazení a režim chlazení). Auto rozhodne podle hodnot systému, např. Hc1CoolingEnabled nebo výnosu chlazení. Bez chlazení má každá zóna jednu cílovou teplotu.",
-          "temperature_write": "Co zapisuje změna cílové teploty. Chytře: v režimu Ručně trvalou žádanou hodnotu, v režimu Časově řízeno dočasné rychlé veto. Vždy rychlé veto: chování před 1.1.0."
+          "temperature_write": "Co zapisuje změna cílové teploty. Chytře: v režimu Ručně trvalou žádanou hodnotu, v režimu Časově řízeno dočasné rychlé veto. Vždy rychlé veto: chování před 1.1.0.",
+          "poll_priming": "Které hodnoty integrace nechá ebusd dotazovat a jak často. Důležité rychle: režimy, žádané hodnoty, teploty místnosti a teplé vody, boost a výkon rychle (?1), ostatní pomalu (?5). Vše rychle: všechny hodnoty s ?1. Vypnuto: jen vlastní dotazování ebusd."
         }
       }
     }
@@ -109,6 +109,13 @@
       "options": {
         "smart": "Chytře (Ručně: žádaná hodnota, Časově řízeno: rychlé veto)",
         "quick_veto": "Vždy rychlé veto"
+      }
+    },
+    "poll_priming": {
+      "options": {
+        "essentials": "Důležité rychle, zbytek pomalu",
+        "all": "Vše rychle",
+        "off": "Vypnuto"
       }
     }
   }

@@ -59,6 +59,14 @@ controlled over [ebusd](https://github.com/john30/ebusd) via MQTT.
 | MQTT prefix | `ebusd`    | Root topic ebusd publishes to |
 | Name        | `Vaillant` | Label prefix for entity names |
 
+## Polling
+
+By default the integration asks ebusd to poll the values it shows most often (modes,
+setpoints, temperatures, boost, power) at priority 1 and everything else at priority 5.
+See [Options](https://signalkraft.com/ebusd-vaillant-component/options/) for the
+`poll_priming` option and matching ebusd add-on settings (`--pollinterval`,
+`--mqttvar=filter-non-name=...`).
+
 ## Services
 
 The integration exposes two diagnostic services:

@@ -24,8 +24,41 @@ DEFAULT_MAX_ZONES = 4
 CONF_ZONES_WITH_TEMP_ONLY = "zones_with_temp_only"
 DEFAULT_ZONES_WITH_TEMP_ONLY = True
 
+# Legacy on/off option (before 1.5.0); read when poll_priming is not set.
 CONF_PRIME_VALUES = "prime_poll_values"
 DEFAULT_PRIME_VALUES = True
+
+# How the integration asks ebusd to poll the values it uses ("?1" fast, "?5" slow).
+CONF_POLL_PRIMING = "poll_priming"
+POLL_PRIMING_ESSENTIALS = "essentials"  # essentials at ?1, everything else at ?5
+POLL_PRIMING_ALL = "all"  # everything at ?1 (prime_poll_values on)
+POLL_PRIMING_OFF = "off"  # nothing (prime_poll_values off)
+POLL_PRIMING_OPTIONS = [POLL_PRIMING_ESSENTIALS, POLL_PRIMING_ALL, POLL_PRIMING_OFF]
+DEFAULT_POLL_PRIMING = POLL_PRIMING_ESSENTIALS
+PRIORITY_FAST = "?1"
+PRIORITY_SLOW = "?5"
+
+# Sensor topics primed fast in "essentials" mode; other sensors are primed slow.
+ESSENTIAL_SENSOR_TOPICS = frozenset(
+    {
+        "PowerConsumptionHmu",
+        "CurrentConsumedPower",
+        "CurrentYieldPower",
+        "YieldHcDay",
+        "YieldHwcDay",
+        "YieldCoolDay",
+    }
+)
+
+
+def poll_priming(options) -> str:
+    """The poll priming mode, honouring the legacy prime_poll_values on/off option."""
+    if CONF_POLL_PRIMING in options:
+        return options[CONF_POLL_PRIMING]
+    if CONF_PRIME_VALUES in options:
+        return POLL_PRIMING_ALL if options[CONF_PRIME_VALUES] else POLL_PRIMING_OFF
+    return DEFAULT_POLL_PRIMING
+
 
 # Whether zones offer cooling (heat/cool target range and the cool HVAC mode).
 # "auto" decides from what the system reports (Hc{n}CoolingEnabled, YieldCooling, ...).
