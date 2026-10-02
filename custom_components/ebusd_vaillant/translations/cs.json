@@ -18,7 +18,35 @@
           "heat": "Ručně",
           "off": "Vypnuto",
           "cool": "Chlazení"
+        },
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Žádná",
+              "away": "Nepřítomnost",
+              "boost": "Boost topení"
+            }
+          }
         }
+      }
+    },
+    "switch": {
+      "heating_boost": {
+        "name": "Boost topení"
+      },
+      "away": {
+        "name": "Nepřítomnost"
+      },
+      "hot_water_away": {
+        "name": "Nepřítomnost"
+      },
+      "hot_water_boost": {
+        "name": "Boost"
+      }
+    },
+    "datetime": {
+      "heating_boost_end": {
+        "name": "Konec boostu topení"
       }
     }
   },

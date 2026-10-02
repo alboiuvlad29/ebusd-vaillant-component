@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import EbusdCoordinator
-from .device import build_device_info
+from .device import LegacyObjectIdMixin, build_device_info
 from .discovery import DiscoveredClimate, DiscoveredWaterHeater, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
@@ -107,16 +107,17 @@ async def async_setup_entry(
     coordinator.add_listener(_on_discover)
 
 
-class EbusdQuickVetoEndEntity(DateTimeEntity):
-    """Datetime entity showing when the quick veto expires on a heating zone."""
+class EbusdQuickVetoEndEntity(LegacyObjectIdMixin, DateTimeEntity):
+    """Datetime entity showing when the quick veto (heating boost) expires on a zone."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
+    _attr_translation_key = "heating_boost_end"
+    _legacy_object_id = "Quick Veto End"
 
     def __init__(self, hass: HomeAssistant, config: DiscoveredClimate) -> None:
         self.hass = hass
         self._config = config
-        self._attr_name = "Quick Veto End"
         self._attr_unique_id = f"ebusd_quick_veto_end_{config.key}"
         self._attr_device_info = build_device_info(config)
         self._attr_native_value: datetime | None = None

@@ -29,3 +29,18 @@ def build_device_info(config) -> DeviceInfo:
     if config.device_key != config.parent_key:
         info["via_device"] = (DOMAIN, config.parent_key)
     return info
+
+
+class LegacyObjectIdMixin:
+    """Keep the entity ID derived from an entity's original English name.
+
+    Entity names come from translations, so renaming one would also change the
+    entity ID of new installs. Entities that were renamed set ``_legacy_object_id``
+    to their old name, so automations and dashboards keep matching.
+    """
+
+    _legacy_object_id: str
+
+    @property
+    def suggested_object_id(self) -> str | None:
+        return self._legacy_object_id

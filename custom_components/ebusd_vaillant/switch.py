@@ -12,6 +12,7 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 
 from .const import (
     CONF_AWAY_MODE_DURATION,
@@ -23,7 +24,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import EbusdCoordinator
-from .device import build_device_info
+from .device import LegacyObjectIdMixin, build_device_info
 from .discovery import DiscoveredClimate, DiscoveredWaterHeater, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,18 +81,19 @@ async def async_setup_entry(
     coordinator.add_listener(_on_discover)
 
 
-class EbusdAwayModeSwitch(SwitchEntity):
+class EbusdAwayModeSwitch(LegacyObjectIdMixin, SwitchEntity):
     """Switch to toggle away mode (holiday) for a heating zone, setting start/end dates on ebusd."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_icon = "mdi:airplane-takeoff"
+    _attr_translation_key = "away"
+    _legacy_object_id = "Away Mode"
 
     def __init__(self, hass: HomeAssistant, config: DiscoveredClimate, away_duration: int) -> None:
         self.hass = hass
         self._config = config
         self._away_duration = away_duration
-        self._attr_name = "Away Mode"
         self._attr_unique_id = f"ebusd_away_mode_{config.key}"
         self._attr_device_info = build_device_info(config)
         self._holiday_start: str | None = None
@@ -159,12 +161,14 @@ class EbusdAwayModeSwitch(SwitchEntity):
         await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
 
 
-class EbusdHwcAwayModeSwitch(SwitchEntity):
+class EbusdHwcAwayModeSwitch(LegacyObjectIdMixin, SwitchEntity):
     """Switch to toggle away mode (holiday) for a hot water circuit, setting dates on ebusd."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_icon = "mdi:airplane-takeoff"
+    _attr_translation_key = "hot_water_away"
+    _legacy_object_id = "Away Mode"
 
     def __init__(
         self, hass: HomeAssistant, config: DiscoveredWaterHeater, away_duration: int
@@ -172,7 +176,6 @@ class EbusdHwcAwayModeSwitch(SwitchEntity):
         self.hass = hass
         self._config = config
         self._away_duration = away_duration
-        self._attr_name = "Away Mode"
         self._attr_unique_id = f"ebusd_away_mode_{config.key}"
         self._attr_device_info = build_device_info(config)
         self._holiday_start: str | None = None
@@ -244,17 +247,18 @@ class EbusdHwcAwayModeSwitch(SwitchEntity):
             await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
 
 
-class EbusdHwcBoostSwitch(SwitchEntity):
-    """Switch to toggle hot water boost mode (load) on a water heater circuit."""
+class EbusdHwcBoostSwitch(LegacyObjectIdMixin, SwitchEntity):
+    """Switch for a one-time hot water charge (HwcSFMode=load); turns off when it ends."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_icon = "mdi:water-boiler-alert"
+    _attr_translation_key = "hot_water_boost"
+    _legacy_object_id = "Boost"
 
     def __init__(self, hass: HomeAssistant, config: DiscoveredWaterHeater) -> None:
         self.hass = hass
         self._config = config
-        self._attr_name = "Boost"
         self._attr_unique_id = f"ebusd_boost_{config.key}"
         self._attr_device_info = build_device_info(config)
         self._sf_mode: str | None = None
@@ -309,12 +313,17 @@ _QUICK_VETO_CANCEL_DATE = "01.01.2015"
 _QUICK_VETO_CANCEL_TIME = "00:00:00"
 
 
-class EbusdQuickVetoSwitch(SwitchEntity):
-    """Switch to activate/cancel quick veto (boost) for a heating zone."""
+class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
+    """Heating boost for a zone: Vaillant's quick veto (temperature X for N hours).
+
+    Turns itself off when the boost ends, so HomeKit and dashboards show the right state.
+    """
 
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_icon = "mdi:thermometer-chevron-up"
+    _attr_translation_key = "heating_boost"
+    _legacy_object_id = "Quick Veto"
 
     def __init__(
         self,
@@ -327,22 +336,29 @@ class EbusdQuickVetoSwitch(SwitchEntity):
         self._config = config
         self._quick_veto_temp = quick_veto_temp
         self._quick_veto_duration = quick_veto_duration
-        self._attr_name = "Quick Veto"
         self._attr_unique_id = f"ebusd_quick_veto_{config.key}"
         self._attr_device_info = build_device_info(config)
         self._quick_veto_end_date: str | None = None
         self._quick_veto_end_time: str | None = None
+        self._boost_temperature: float | None = None
+        self._boost_duration: float | None = None
         self._unsubscribe: list[Any] = []
+        self._cancel_end_timer: Any = None
 
     async def async_added_to_hass(self) -> None:
         if self._config.quick_veto_end_date:
             await self._subscribe(self._config.quick_veto_end_date, self._handle_end_date)
         if self._config.quick_veto_end_time:
             await self._subscribe(self._config.quick_veto_end_time, self._handle_end_time)
+        if self._config.quick_veto_temp:
+            await self._subscribe(self._config.quick_veto_temp, self._handle_temperature)
+        if self._config.quick_veto_duration:
+            await self._subscribe(self._config.quick_veto_duration, self._handle_duration)
 
     async def async_will_remove_from_hass(self) -> None:
         for unsub in self._unsubscribe:
             unsub()
+        self._cancel_timer()
 
     async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
         @callback
@@ -354,6 +370,7 @@ class EbusdQuickVetoSwitch(SwitchEntity):
             value = _get(payload, topic_cfg.field)
             if value is not None:
                 handler(value)
+                self._schedule_end()
                 self.async_write_ha_state()
 
         unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
@@ -367,17 +384,68 @@ class EbusdQuickVetoSwitch(SwitchEntity):
     def _handle_end_time(self, value: Any) -> None:
         self._quick_veto_end_time = str(value)
 
-    @property
-    def is_on(self) -> bool:
-        if not self._quick_veto_end_date or not self._quick_veto_end_time:
-            return False
+    @callback
+    def _handle_temperature(self, value: Any) -> None:
         try:
-            veto_end = datetime.strptime(
+            self._boost_temperature = float(value)
+        except TypeError, ValueError:
+            self._boost_temperature = None
+
+    @callback
+    def _handle_duration(self, value: Any) -> None:
+        try:
+            self._boost_duration = float(value)
+        except TypeError, ValueError:
+            self._boost_duration = None
+
+    def _end(self) -> datetime | None:
+        if not self._quick_veto_end_date or not self._quick_veto_end_time:
+            return None
+        try:
+            return datetime.strptime(
                 f"{self._quick_veto_end_date} {self._quick_veto_end_time}", _DATE_TIME_FMT
             )
-            return veto_end > datetime.now()
         except ValueError:
-            return False
+            return None
+
+    @callback
+    def _cancel_timer(self) -> None:
+        if self._cancel_end_timer is not None:
+            self._cancel_end_timer()
+            self._cancel_end_timer = None
+
+    @callback
+    def _schedule_end(self) -> None:
+        """Write the state again when the boost ends, so it flips to off by itself."""
+        self._cancel_timer()
+        end = self._end()
+        if end is None:
+            return
+        delay = (end - datetime.now()).total_seconds()
+        if delay <= 0:
+            return
+
+        @callback
+        def _ended(_now: Any) -> None:
+            self._cancel_end_timer = None
+            self.async_write_ha_state()
+
+        self._cancel_end_timer = async_call_later(self.hass, delay + 1, _ended)
+
+    @property
+    def is_on(self) -> bool:
+        end = self._end()
+        return end is not None and end > datetime.now()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        end = self._end()
+        active = end is not None and end > datetime.now()
+        return {
+            "boost_temperature": self._boost_temperature,
+            "boost_duration_hours": self._boost_duration,
+            "boost_ends_at": end.isoformat() if active else None,
+        }
 
     async def _publish(self, topic: str, payload: str) -> None:
         _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)

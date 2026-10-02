@@ -18,7 +18,35 @@
           "heat": "Manuale",
           "off": "Spento",
           "cool": "Raffrescamento"
+        },
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Nessuna",
+              "away": "Assente",
+              "boost": "Boost riscaldamento"
+            }
+          }
         }
+      }
+    },
+    "switch": {
+      "heating_boost": {
+        "name": "Boost riscaldamento"
+      },
+      "away": {
+        "name": "Assente"
+      },
+      "hot_water_away": {
+        "name": "Assente"
+      },
+      "hot_water_boost": {
+        "name": "Boost"
+      }
+    },
+    "datetime": {
+      "heating_boost_end": {
+        "name": "Fine boost riscaldamento"
       }
     }
   },

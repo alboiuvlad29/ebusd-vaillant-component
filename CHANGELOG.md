@@ -2,6 +2,17 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.3.0
+
+- Plain-language entity names without "veto": the zone quick veto switch is now
+  **Heating boost**, the away mode switches are **Away**, the hot water boost switch is
+  **Boost**, and "Quick veto end" is **Heating boost end**. The climate presets read
+  **Heating boost** and **Away**. Entity IDs and unique IDs are unchanged, also on new
+  installs.
+- The Heating boost switch has `boost_temperature`, `boost_duration_hours` and
+  `boost_ends_at` attributes and turns itself off when the boost ends (so HomeKit shows
+  the right state). The water heater has a `boost_active` attribute.
+
 ## 1.2.0
 
 - Modes are shown with the sensoCOMFORT names: **Time controlled** (`auto`), **Manual**

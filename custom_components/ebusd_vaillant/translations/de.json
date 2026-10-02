@@ -18,7 +18,35 @@
           "heat": "Manuell",
           "off": "Aus",
           "cool": "Kühlen"
+        },
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Keine",
+              "away": "Abwesend",
+              "boost": "Heizungs-Boost"
+            }
+          }
         }
+      }
+    },
+    "switch": {
+      "heating_boost": {
+        "name": "Heizungs-Boost"
+      },
+      "away": {
+        "name": "Abwesend"
+      },
+      "hot_water_away": {
+        "name": "Abwesend"
+      },
+      "hot_water_boost": {
+        "name": "Boost"
+      }
+    },
+    "datetime": {
+      "heating_boost_end": {
+        "name": "Ende Heizungs-Boost"
       }
     }
   },
