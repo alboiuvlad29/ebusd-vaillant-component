@@ -71,6 +71,12 @@
       },
       "energy_standby": {
         "name": "Elektrická energie pohotovost"
+      },
+      "effective_target_temperature": {
+        "name": "Efektivní cílová teplota"
+      },
+      "setback_temperature": {
+        "name": "Útlumová teplota"
       }
     },
     "binary_sensor": {
@@ -79,6 +85,9 @@
       },
       "ebus_connected": {
         "name": "eBUS připojen"
+      },
+      "time_slot_active": {
+        "name": "Časové okno aktivní"
       }
     }
   },

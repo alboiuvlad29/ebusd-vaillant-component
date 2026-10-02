@@ -24,7 +24,7 @@ from .const import (
 )
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
-from .discovery import DiscoveredPressureMonitor, TopicConfig, _get
+from .discovery import DiscoveredPressureMonitor, DiscoveredZoneFlag, TopicConfig, _get
 
 _TRUE = frozenset({"1", "on", "yes", "true"})
 _FALSE = frozenset({"0", "off", "no", "false"})
@@ -67,6 +67,9 @@ async def async_setup_entry(
             if isinstance(e, DiscoveredPressureMonitor) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdLowPressureBinarySensor(hass, e, threshold))
+            elif isinstance(e, DiscoveredZoneFlag) and e.key not in seen:
+                seen.add(e.key)
+                new.append(EbusdZoneFlagBinarySensor(hass, e))
         if new:
             async_add_entities(new)
 
@@ -196,3 +199,35 @@ class EbusdConnectedBinarySensor(BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         return {"signal": self._signal, "running": self._running}
+
+
+class EbusdZoneFlagBinarySensor(BinarySensorEntity):
+    """An on/off value of a zone, such as whether a schedule time slot is active."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, config: DiscoveredZoneFlag) -> None:
+        self.hass = hass
+        self._config = config
+        self._attr_translation_key = config.translation_key
+        self._attr_unique_id = f"ebusd_zone_{config.key}"
+        self._attr_device_info = build_device_info(config)
+        self._attr_is_on: bool | None = None
+        self._unsubscribe: Any = None
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
+            value = _flag(_get(_payload(msg.payload), self._config.topic.field))
+            if value is not None:
+                self._attr_is_on = value
+                self.async_write_ha_state()
+
+        self._unsubscribe = await mqtt.async_subscribe(
+            self.hass, self._config.topic.read_topic, _handle
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsubscribe:
+            self._unsubscribe()

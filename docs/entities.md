@@ -50,3 +50,13 @@ When no other pressure message exists, a Water Pressure sensor is created from
 | **Electrical energy heating** / **hot water** / **standby** (kWh) | The heat pump's electrical power input (`PowerConsumptionHmu` in kW, or `RunDataElectricPowerConsumption` in W) integrated over time and booked to the operating mode at that moment. Heating includes cooling and defrost; standby is idle. Gaps over 30 minutes between samples (e.g. ebusd offline) are skipped. Values survive restarts and can be used in the Energy dashboard. |
 
 These are new entities; existing template or Riemann helpers built by hand keep working.
+
+## Zone extras
+
+Created per zone when the controller publishes them (newer ebusd definitions):
+
+| Entity | Source | Notes |
+|---|---|---|
+| **Effective target temperature** | `Z{n}TempDesired` | The target the controller is aiming for right now, including the schedule and a heating boost. The climate entity shows it as its target in Time controlled mode. |
+| **Setback temperature** | `Z{n}SetbackTemp` | The reduced temperature outside time slots. |
+| **Time slot active** | `Z{n}TimeSlotActive` | On while a schedule time slot is active. |

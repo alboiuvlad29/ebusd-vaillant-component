@@ -2,6 +2,14 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.9.0
+
+- Zone extras (newer definitions): **Effective target temperature** (`Z{n}TempDesired`),
+  **Setback temperature** (`Z{n}SetbackTemp`) and **Time slot active**
+  (`Z{n}TimeSlotActive`) on each zone device.
+- Fix: with the newer definitions, `Z{n}SetbackTemp` no longer turns a zone into a
+  day/setback target range when cooling could not be detected.
+
 ## 1.8.0
 
 - Write protection for setpoints (the controller stores them in EEPROM): the first change

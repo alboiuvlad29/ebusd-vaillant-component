@@ -71,6 +71,12 @@
       },
       "energy_standby": {
         "name": "Energía eléctrica en espera"
+      },
+      "effective_target_temperature": {
+        "name": "Temperatura objetivo efectiva"
+      },
+      "setback_temperature": {
+        "name": "Temperatura reducida"
       }
     },
     "binary_sensor": {
@@ -79,6 +85,9 @@
       },
       "ebus_connected": {
         "name": "eBUS conectado"
+      },
+      "time_slot_active": {
+        "name": "Franja horaria activa"
       }
     }
   },

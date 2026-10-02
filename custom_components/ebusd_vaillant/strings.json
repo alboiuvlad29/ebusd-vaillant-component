@@ -71,6 +71,12 @@
       },
       "energy_standby": {
         "name": "Electrical energy standby"
+      },
+      "effective_target_temperature": {
+        "name": "Effective target temperature"
+      },
+      "setback_temperature": {
+        "name": "Setback temperature"
       }
     },
     "binary_sensor": {
@@ -79,6 +85,9 @@
       },
       "ebus_connected": {
         "name": "eBUS connected"
+      },
+      "time_slot_active": {
+        "name": "Time slot active"
       }
     }
   },
