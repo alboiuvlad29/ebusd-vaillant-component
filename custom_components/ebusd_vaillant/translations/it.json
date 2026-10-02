@@ -52,6 +52,25 @@
     "sensor": {
       "current_error": {
         "name": "Errore attuale"
+      },
+      "operating_mode": {
+        "name": "Modalità di funzionamento",
+        "state": {
+          "heating": "Riscaldamento",
+          "cooling": "Raffrescamento",
+          "hot_water": "Acqua calda",
+          "defrost": "Sbrinamento",
+          "idle": "Inattivo"
+        }
+      },
+      "energy_heating": {
+        "name": "Energia elettrica riscaldamento"
+      },
+      "energy_hot_water": {
+        "name": "Energia elettrica acqua calda"
+      },
+      "energy_standby": {
+        "name": "Energia elettrica standby"
       }
     },
     "binary_sensor": {

@@ -41,3 +41,12 @@ These entities are created disabled; enable them in the entity settings if you w
 
 When no other pressure message exists, a Water Pressure sensor is created from
 `hmu Status07.displaypressure`.
+
+## Operating mode and energy split (disabled by default)
+
+| Entity | Notes |
+|---|---|
+| **Operating mode** (heat pump device) | `heating`, `cooling`, `hot_water`, `defrost` or `idle`, from the same signals as the climate HVAC action (see [MQTT Mapping](mapping.md)). |
+| **Electrical energy heating** / **hot water** / **standby** (kWh) | The heat pump's electrical power input (`PowerConsumptionHmu` in kW, or `RunDataElectricPowerConsumption` in W) integrated over time and booked to the operating mode at that moment. Heating includes cooling and defrost; standby is idle. Gaps over 30 minutes between samples (e.g. ebusd offline) are skipped. Values survive restarts and can be used in the Energy dashboard. |
+
+These are new entities; existing template or Riemann helpers built by hand keep working.

@@ -52,6 +52,25 @@
     "sensor": {
       "current_error": {
         "name": "Aktueller Fehler"
+      },
+      "operating_mode": {
+        "name": "Betriebsart",
+        "state": {
+          "heating": "Heizen",
+          "cooling": "Kühlen",
+          "hot_water": "Warmwasser",
+          "defrost": "Abtauen",
+          "idle": "Leerlauf"
+        }
+      },
+      "energy_heating": {
+        "name": "Stromverbrauch Heizen"
+      },
+      "energy_hot_water": {
+        "name": "Stromverbrauch Warmwasser"
+      },
+      "energy_standby": {
+        "name": "Stromverbrauch Standby"
       }
     },
     "binary_sensor": {

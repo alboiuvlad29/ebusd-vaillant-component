@@ -52,6 +52,25 @@
     "sensor": {
       "current_error": {
         "name": "Huidige fout"
+      },
+      "operating_mode": {
+        "name": "Bedrijfsmodus",
+        "state": {
+          "heating": "Verwarmen",
+          "cooling": "Koelen",
+          "hot_water": "Warm water",
+          "defrost": "Ontdooien",
+          "idle": "Inactief"
+        }
+      },
+      "energy_heating": {
+        "name": "Elektrische energie verwarmen"
+      },
+      "energy_hot_water": {
+        "name": "Elektrische energie warm water"
+      },
+      "energy_standby": {
+        "name": "Elektrische energie stand-by"
       }
     },
     "binary_sensor": {
