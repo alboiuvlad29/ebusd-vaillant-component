@@ -1,0 +1,51 @@
+# Reconstructed from a sensoCOMFORT VRC 720/3 (ctlv3, SW0808 HW8004) + aroTHERM (hmu, HW5103 SW0902)
+# with the TypeSpec-based controller definitions (15.ctlv2.tsp): OpMode values
+# off/auto/manual, Z{n}ManualTemp instead of Z{n}DayTemp, HwcSFMode auto/load.
+ebusd/ctlv3:
+    Z1ManualTemp: 20.5
+    Z1RoomTemp: 21.2
+    Z1OpMode: manual
+    Z1SFMode: auto
+    Z1Status: manual
+    Z1TempDesired: 20.5
+    Z1QuickVetoTemp: 21
+    Z1QuickVetoDuration: 3
+    Z1HolidayStartPeriod: "01.01.2015"
+    Z1HolidayEndPeriod: "01.01.2015"
+    Hc1CircuitType: mixer
+    Hc1Status: "on"
+    Hc1FlowTemp: 32.5
+    Hc1MinFlowTempDesired: 20
+    Hc1MaxFlowTempDesired: 45
+    HwcOpMode: manual
+    HwcSFMode: auto
+    HwcTempDesired: 50
+    HwcStorageTemp: 48.5
+    HwcHolidayStartPeriod: "01.01.2015"
+    HwcHolidayEndPeriod: "01.01.2015"
+    OutsideTemp: 9.4
+    Currenterror:
+        error: null
+        error_1: null
+        error_2: null
+        error_3: null
+        error_4: null
+ebusd/hmu:
+    RunDataStatuscode: standby
+    CurrentConsumedPower: 0
+    CurrentYieldPower: 0
+    YieldHc: 4210
+    YieldHwc: 1130
+    WaterPressure: 1.6
+ebusd/scan.08:
+    "":
+        MF: Vaillant
+        ID: HMU00
+        SW: "0902"
+        HW: "5103"
+ebusd/scan.15:
+    "":
+        MF: Vaillant
+        ID: CTLV3
+        SW: "0808"
+        HW: "8004"

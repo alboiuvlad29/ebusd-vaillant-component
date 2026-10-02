@@ -25,6 +25,7 @@ Assistant HVAC modes:
 |---|---|
 | `auto` | `auto` |
 | `day` | `heat` |
+| `manual` | `heat` |
 | `night` | `cool` |
 | `heat` | `heat` |
 | `cool` | `cool` |
@@ -33,6 +34,21 @@ Assistant HVAC modes:
 For water heaters, the raw ebusd operation mode values (`auto`, `day`, `off`)
 are passed through directly.  When `HwcSFMode` is available, an additional
 `boost` mode is added to the operation list.
+
+### Mode vocabulary
+
+Older ebusd-configuration controller files define `Z{n}OpMode` and `HwcOpMode`
+as `off`/`auto`/`day`/`night`; the newer TypeSpec-based `15.ctlv2`/`15.ctlv3`
+files use `off`/`auto`/`manual` and rename `Z{n}DayTemp` to `Z{n}ManualTemp`.
+The component detects the vocabulary per controller and writes the matching value:
+
+- an OpMode value of `manual` selects the new vocabulary, `day` or `night` the old one;
+- with only `auto`/`off` seen, `Z{n}ManualTemp` without `Z{n}DayTemp` selects the new one;
+- otherwise the old vocabulary is assumed.
+
+With the new vocabulary, HA `heat` writes `manual`, the water heater offers
+`auto`/`manual`/`off`, and the `cool` HVAC mode is not offered (there is no `night`
+value to write). A value read later from MQTT always overrides the initial guess.
 
 ## Preset modes
 
@@ -58,7 +74,7 @@ Climate entities are created for each heating zone that has both a
 |---|---|---|---|
 | `Z{n}OpMode` | `value.value` | read/write | HVAC mode |
 | `Z{n}RoomTemp` | `value.value` | read | Current temperature |
-| `Z{n}DayTemp` | `value.value` | read/write | Target temperature (or low in range mode) |
+| `Z{n}DayTemp` / `Z{n}ManualTemp` | `value.value` | read/write | Target temperature (or low in range mode) |
 | `Z{n}NightTemp` | `value.value` | read/write | Target temperature low |
 | `Z{n}CoolingTemp` | `value.value` | read/write | Target temperature high |
 | `Z{n}HolidayStartPeriod` | `value.value` | read/write | Preset "away" start |
@@ -86,7 +102,7 @@ are present.
 
 | MQTT message | Field | Access | HA control / attribute |
 |---|---|---|---|
-| `HwcOpMode` | `value.value` | read/write | Operation mode (`auto`, `day`, `off`) |
+| `HwcOpMode` | `value.value` | read/write | Operation mode (`auto`, `day`/`manual`, `off`) |
 | `HwcTempDesired` | `value.value` | read/write | Target temperature |
 | `HwcStorageTemp` | `value.value` | read | Current temperature |
 | `HwcStorageTempBottom` | `value.value` | read | Current temperature (fallback) |
@@ -107,7 +123,7 @@ entity is created.
 | Control | Mechanism |
 |---|---|
 | Operation mode `boost` / Switch turn on | Writes `load` to `HwcSFMode/set` |
-| Operation mode `auto`/`day`/`off` / Switch turn off | Writes `auto` to `HwcSFMode/set` |
+| Operation mode `auto`/`day`/`manual`/`off` / Switch turn off | Writes `auto` to `HwcSFMode/set` |
 | State display | Shows `boost` when `HwcSFMode` is `load`, falls back to actual `HwcOpMode` value otherwise |
 
 The underlying `HwcOpMode` is not changed when boost is activated; the water

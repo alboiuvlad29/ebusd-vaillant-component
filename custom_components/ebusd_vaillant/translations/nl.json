@@ -5,6 +5,7 @@
         "state": {
           "auto": "Automatisch",
           "day": "Handmatig",
+          "manual": "Handmatig",
           "boost": "Boost"
         }
       }

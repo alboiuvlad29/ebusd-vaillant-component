@@ -10,6 +10,7 @@
         "state": {
           "auto": "mdi:water-boiler-auto",
           "day": "mdi:weather-sunny",
+          "manual": "mdi:hand-back-right",
           "boost": "mdi:water-boiler-alert"
         }
       }

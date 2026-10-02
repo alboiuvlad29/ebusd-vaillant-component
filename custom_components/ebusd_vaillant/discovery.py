@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .const import DEVICE_TYPE_LABELS
+from .const import (
+    DEVICE_TYPE_LABELS,
+    HWC_OPERATION_MODES,
+    MODE_VOCAB_DAY,
+    MODE_VOCAB_MANUAL,
+    ZONE_HVAC_MODES,
+)
 
 
 @dataclass
@@ -42,6 +48,7 @@ class DiscoveredClimate:
     has_quick_veto: bool = False
     run_data_status: TopicConfig | None = None
     hc_status: TopicConfig | None = None
+    mode_vocab: str = MODE_VOCAB_DAY  # "day" (old definitions) or "manual" (new)
     min_temp: float = 5.0
     max_temp: float = 30.0
     temp_step: float = 0.5
@@ -127,7 +134,10 @@ class DiscoveredWaterHeater:
     mode: TopicConfig
     target_temperature: TopicConfig
     current_temperature: TopicConfig | None = None
-    operation_modes: list[str] = field(default_factory=lambda: ["auto", "day", "off"])
+    operation_modes: list[str] = field(
+        default_factory=lambda: list(HWC_OPERATION_MODES[MODE_VOCAB_DAY])
+    )
+    mode_vocab: str = MODE_VOCAB_DAY  # "day" (old definitions) or "manual" (new)
     sf_mode: TopicConfig | None = None
     holiday_start: TopicConfig | None = None
     holiday_end: TopicConfig | None = None
@@ -479,6 +489,41 @@ def _find_nested(
     return _find_topic(msgs, patterns)
 
 
+def mode_vocab_from_value(value: Any) -> str | None:
+    """Return the mode vocabulary revealed by an OpMode value, or None if ambiguous.
+
+    ``auto`` and ``off`` exist in both vocabularies and reveal nothing.
+    """
+    value = str(value)
+    if value == MODE_VOCAB_MANUAL:
+        return MODE_VOCAB_MANUAL
+    if value in (MODE_VOCAB_DAY, "night"):
+        return MODE_VOCAB_DAY
+    return None
+
+
+def _detect_mode_vocab(msgs: dict[str, Any], max_zones: int) -> str:
+    """Detect whether a controller uses the day/night or the manual mode vocabulary.
+
+    All OpMode messages of one controller come from the same definition file, so
+    the answer is per device. A revealing OpMode value wins; otherwise the presence
+    of Z{n}ManualTemp without Z{n}DayTemp indicates the newer definitions.
+    """
+    op_keys = [_resolve_key(msgs, "hwc_op_mode")]
+    op_keys += [_resolve_key(msgs, "zone_op_mode", n=n) for n in range(1, max_zones + 1)]
+    for key in op_keys:
+        if key is None:
+            continue
+        vocab = mode_vocab_from_value(_get(msgs[key], _infer_field(msgs[key])))
+        if vocab is not None:
+            return vocab
+    has_manual = any(f"Z{n}ManualTemp" in msgs for n in range(1, max_zones + 1))
+    has_day = any(f"Z{n}DayTemp" in msgs for n in range(1, max_zones + 1))
+    if has_manual and not has_day:
+        return MODE_VOCAB_MANUAL
+    return MODE_VOCAB_DAY
+
+
 def _topic_config(
     prefix: str,
     device: str,
@@ -555,6 +600,7 @@ def _analyze(
         _model = _meta.get("model", "")
         _sw = _meta.get("sw_version", "")
         _hw = _meta.get("hw_version", "")
+        _vocab = _detect_mode_vocab(msgs, max_zones)
 
         # --- Water heater: HwcOpMode + HwcTempDesired required ---
         hwc_op_key = _resolve_key(msgs, "hwc_op_mode")
@@ -584,6 +630,8 @@ def _analyze(
                         _infer_field(msgs.get(hwc_current_key)),
                         writable=False,
                     ),
+                    operation_modes=list(HWC_OPERATION_MODES[_vocab]),
+                    mode_vocab=_vocab,
                     sf_mode=(
                         _topic_config(prefix, device_id, hwc_sf_key, _infer_field(msgs[hwc_sf_key]))
                         if hwc_sf_key
@@ -717,9 +765,13 @@ def _analyze(
                 if _get(msgs[zrm_key], zrm_field) == "none":
                     continue
 
-            hvac_modes = ["auto", "heat", "cool", "off"]
+            hvac_modes = list(ZONE_HVAC_MODES[_vocab])
 
             day_key = _resolve_key(msgs, "zone_day_temp", n=zone)
+            # A stale retained Z{n}DayTemp may linger after switching to the newer
+            # definitions; prefer Z{n}ManualTemp when the controller speaks "manual".
+            if _vocab == MODE_VOCAB_MANUAL and f"Z{zone}ManualTemp" in msgs:
+                day_key = f"Z{zone}ManualTemp"
             cooling_key = _resolve_key(msgs, "zone_cooling_temp", n=zone)
             night_key = _resolve_key(msgs, "zone_night_temp", n=zone)
 
@@ -846,6 +898,7 @@ def _analyze(
                     has_quick_veto=has_quick_veto,
                     run_data_status=run_data_status_cfg,
                     hc_status=hc_status_cfg,
+                    mode_vocab=_vocab,
                     device_key=f"{device_id}_zone{zone}",
                     device_name=f"{display_name} Zone {zone}",
                     parent_key=prefix,

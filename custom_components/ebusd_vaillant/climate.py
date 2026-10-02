@@ -34,6 +34,7 @@ from .const import (
     DOMAIN,
     EBUSD_TO_HA_HVAC,
     HA_TO_EBUSD_HVAC,
+    ZONE_HVAC_MODES,
 )
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
@@ -42,6 +43,7 @@ from .discovery import (
     DiscoveredFlowTempRange,
     TopicConfig,
     _get,
+    mode_vocab_from_value,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -127,6 +129,8 @@ class EbusdClimateEntity(ClimateEntity):
         self._attr_target_temperature_step = config.temp_step
 
         self._attr_hvac_modes = [_HA_HVAC_MODE[m] for m in config.hvac_modes if m in _HA_HVAC_MODE]
+        self._mode_vocab = config.mode_vocab
+        self._mode_vocab_observed = False
         self._attr_hvac_mode = HVACMode.OFF
         self._attr_hvac_action = HVACAction.OFF
 
@@ -219,6 +223,8 @@ class EbusdClimateEntity(ClimateEntity):
             val = coordinator.get_current_value(config.hc_status)
             if val is not None:
                 self._handle_hc_statuscode(val)
+        if not self._mode_vocab_observed:
+            self._set_mode_vocab(config.mode_vocab)
         self._config = config
         self.async_write_ha_state()
 
@@ -270,7 +276,17 @@ class EbusdClimateEntity(ClimateEntity):
         return HVACAction.OFF
 
     @callback
+    def _set_mode_vocab(self, vocab: str) -> None:
+        if vocab == self._mode_vocab:
+            return
+        self._mode_vocab = vocab
+        self._attr_hvac_modes = [_HA_HVAC_MODE[m] for m in ZONE_HVAC_MODES[vocab]]
+
+    @callback
     def _handle_mode(self, value: str) -> None:
+        if (vocab := mode_vocab_from_value(value)) is not None:
+            self._mode_vocab_observed = True
+            self._set_mode_vocab(vocab)
         ha_mode = EBUSD_TO_HA_HVAC.get(str(value), "off")
         self._attr_hvac_mode = _HA_HVAC_MODE.get(ha_mode, HVACMode.OFF)
         self._attr_hvac_action = self._determine_hvac_action()
@@ -393,7 +409,15 @@ class EbusdClimateEntity(ClimateEntity):
                 await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-        ebusd_mode = HA_TO_EBUSD_HVAC.get(hvac_mode.value, "auto")
+        ebusd_mode = HA_TO_EBUSD_HVAC[self._mode_vocab].get(hvac_mode.value)
+        if ebusd_mode is None:
+            _LOGGER.warning(
+                "HVAC mode %s is not supported by %s (%s mode vocabulary)",
+                hvac_mode,
+                self.entity_id,
+                self._mode_vocab,
+            )
+            return
         cfg = self._config.mode
         if cfg.write_topic is None:
             return

@@ -5,6 +5,7 @@
         "state": {
           "auto": "Automaticky",
           "day": "Ručně",
+          "manual": "Ručně",
           "boost": "Boost"
         }
       }

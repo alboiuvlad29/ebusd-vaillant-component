@@ -17,10 +17,17 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION, DOMAIN
+from .const import (
+    CONF_AWAY_MODE_DURATION,
+    DEFAULT_AWAY_MODE_DURATION,
+    DOMAIN,
+    HWC_OPERATION_MODES,
+    MODE_VOCAB_DAY,
+    MODE_VOCAB_MANUAL,
+)
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
-from .discovery import DiscoveredWaterHeater, TopicConfig, _get
+from .discovery import DiscoveredWaterHeater, TopicConfig, _get, mode_vocab_from_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,10 +87,10 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         self._attr_min_temp = config.min_temp
         self._attr_max_temp = config.max_temp
         self._attr_target_temperature_step = config.temp_step
-        if config.sf_mode:
-            self._attr_operation_list = [*config.operation_modes, "boost"]
-        else:
-            self._attr_operation_list = config.operation_modes
+        self._mode_vocab = config.mode_vocab
+        self._mode_vocab_observed = False
+        self._operation_modes = list(config.operation_modes)
+        self._update_operation_list()
         self._attr_current_operation: str | None = None
         self._attr_current_temperature: float | None = None
         self._attr_target_temperature: float | None = None
@@ -132,9 +139,26 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             await self._subscribe(config.sf_mode, self._handle_sf_mode)
             if (v := self._coordinator.get_current_value(config.sf_mode)) is not None:
                 self._handle_sf_mode(v)
-            self._attr_operation_list = [*config.operation_modes, "boost"]
         self._config = config
+        if not self._mode_vocab_observed:
+            self._set_mode_vocab(config.mode_vocab)
+        self._update_operation_list()
         self.async_write_ha_state()
+
+    @callback
+    def _update_operation_list(self) -> None:
+        if self._config.sf_mode:
+            self._attr_operation_list = [*self._operation_modes, "boost"]
+        else:
+            self._attr_operation_list = list(self._operation_modes)
+
+    @callback
+    def _set_mode_vocab(self, vocab: str) -> None:
+        if vocab == self._mode_vocab:
+            return
+        self._mode_vocab = vocab
+        self._operation_modes = list(HWC_OPERATION_MODES[vocab])
+        self._update_operation_list()
 
     def _seed_from_coordinator(self) -> None:
         if (v := self._coordinator.get_current_value(self._config.mode)) is not None:
@@ -173,6 +197,9 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
 
     @callback
     def _handle_mode(self, value: str) -> None:
+        if (vocab := mode_vocab_from_value(value)) is not None:
+            self._mode_vocab_observed = True
+            self._set_mode_vocab(vocab)
         self._raw_operation = str(value)
         self._attr_current_operation = "boost" if self._sf_mode == "load" else self._raw_operation
 
@@ -248,6 +275,10 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             return
         if self._config.sf_mode and self._config.sf_mode.write_topic and self._sf_mode == "load":
             await self._publish(self._config.sf_mode.write_topic, "auto")
+        if operation_mode in (MODE_VOCAB_DAY, MODE_VOCAB_MANUAL):
+            # The service only offers the detected spelling; map defensively in case the
+            # vocabulary changed after the caller read the operation list.
+            operation_mode = self._mode_vocab
         cfg = self._config.mode
         if cfg.write_topic:
             await self._publish(cfg.write_topic, operation_mode)

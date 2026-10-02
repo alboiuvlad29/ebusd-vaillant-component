@@ -27,24 +27,46 @@ DEFAULT_ZONES_WITH_TEMP_ONLY = True
 CONF_PRIME_VALUES = "prime_poll_values"
 DEFAULT_PRIME_VALUES = True
 
+# Operating mode vocabulary of the controller definitions (Z{n}OpMode, HwcOpMode).
+# Older ebusd-configuration files use 0=off;1=auto;2=day;3=night, newer ones
+# (TypeSpec-based 15.ctlv2/ctlv3) use 0=off;1=auto;2=manual.
+MODE_VOCAB_DAY = "day"
+MODE_VOCAB_MANUAL = "manual"
+
 # ebusd → HA HVAC mode (heating zones: Z1OpMode, Z2OpMode, hmu/SetMode.hcmode)
 EBUSD_TO_HA_HVAC = {
     "auto": "auto",
     "day": "heat",
+    "manual": "heat",
     "night": "cool",
     "off": "off",
     "heat": "heat",
     "cool": "cool",
 }
+# HA → ebusd HVAC mode, per vocabulary. The manual vocabulary has no night/cool value.
 HA_TO_EBUSD_HVAC = {
-    "auto": "auto",
-    "heat": "day",
-    "cool": "night",
-    "off": "off",
+    MODE_VOCAB_DAY: {
+        "auto": "auto",
+        "heat": "day",
+        "cool": "night",
+        "off": "off",
+    },
+    MODE_VOCAB_MANUAL: {
+        "auto": "auto",
+        "heat": "manual",
+        "off": "off",
+    },
+}
+ZONE_HVAC_MODES = {
+    MODE_VOCAB_DAY: ["auto", "heat", "cool", "off"],
+    MODE_VOCAB_MANUAL: ["auto", "heat", "off"],
 }
 
-# ebusd → HA water heater operation modes (HwcOpMode)
-HWC_OPERATION_MODES = ["auto", "day", "off"]
+# ebusd → HA water heater operation modes (HwcOpMode), per vocabulary
+HWC_OPERATION_MODES = {
+    MODE_VOCAB_DAY: ["auto", "day", "off"],
+    MODE_VOCAB_MANUAL: ["auto", "manual", "off"],
+}
 
 # Map RunDataStatuscode values from ebusd/hmu to HA HVAC action.
 _STAT_HVAC_ACTION_HEATING = frozenset(

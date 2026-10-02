@@ -55,6 +55,7 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.holiday_end_time is not None,
             e.run_data_status is not None,
             e.hc_status is not None,
+            e.mode_vocab,
         )
     if isinstance(e, DiscoveredWaterHeater):
         return (
@@ -64,6 +65,7 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.holiday_start_time is not None,
             e.holiday_end_time is not None,
             e.sf_mode is not None,
+            e.mode_vocab,
         )
     return (e.name,)
 
