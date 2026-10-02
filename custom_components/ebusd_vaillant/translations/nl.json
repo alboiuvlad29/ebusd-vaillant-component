@@ -71,6 +71,12 @@
       },
       "energy_standby": {
         "name": "Elektrische energie stand-by"
+      },
+      "effective_target_temperature": {
+        "name": "Effectieve doeltemperatuur"
+      },
+      "setback_temperature": {
+        "name": "Verlaagde temperatuur"
       }
     },
     "binary_sensor": {
@@ -79,6 +85,9 @@
       },
       "ebus_connected": {
         "name": "eBUS verbonden"
+      },
+      "time_slot_active": {
+        "name": "Tijdvenster actief"
       }
     }
   },

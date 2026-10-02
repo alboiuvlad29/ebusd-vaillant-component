@@ -71,6 +71,12 @@
       },
       "energy_standby": {
         "name": "Stromverbrauch Standby"
+      },
+      "effective_target_temperature": {
+        "name": "Effektive Solltemperatur"
+      },
+      "setback_temperature": {
+        "name": "Absenktemperatur"
       }
     },
     "binary_sensor": {
@@ -79,6 +85,9 @@
       },
       "ebus_connected": {
         "name": "eBUS verbunden"
+      },
+      "time_slot_active": {
+        "name": "Zeitfenster aktiv"
       }
     }
   },

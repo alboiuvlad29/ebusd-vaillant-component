@@ -107,7 +107,10 @@ class EbusdSensor(_EbusdNumericSensor):
 
     def __init__(self, hass: HomeAssistant, config: DiscoveredSensor) -> None:
         super().__init__(hass, config.topic.read_topic, config.topic.field)
-        self._attr_name = config.name
+        if config.translation_key:
+            self._attr_translation_key = config.translation_key
+        else:
+            self._attr_name = config.name
         self._attr_unique_id = f"{config.unique_id_prefix}_{config.key}"
         self._attr_device_class = (
             SensorDeviceClass(config.device_class) if config.device_class else None

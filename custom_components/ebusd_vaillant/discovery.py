@@ -129,6 +129,8 @@ class DiscoveredSensor:
     state_class: str
     unit: str | None
     unique_id_prefix: str
+    # when set, the entity name comes from translations instead of ``name``
+    translation_key: str | None = None
     # Device-grouping fields (populated by _analyze)
     device_key: str = ""
     device_name: str = ""
@@ -159,6 +161,25 @@ class DiscoveredWaterHeater:
     min_temp: float = 40.0
     max_temp: float = 80.0
     temp_step: float = 1.0
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+@dataclass
+class DiscoveredZoneFlag:
+    """An on/off value of a zone, e.g. Z{n}TimeSlotActive."""
+
+    device_id: str
+    key: str
+    name: str
+    topic: TopicConfig
+    translation_key: str
     # Device-grouping fields (populated by _analyze)
     device_key: str = ""
     device_name: str = ""
@@ -508,6 +529,8 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "hc_status": ["Hc{n}Status"],
     "current_error": ["Currenterror", "CurrentError"],
     "zone_status": ["Z{n}Status", "z{n}Status"],
+    "zone_setback_temp": ["Z{n}SetbackTemp"],
+    "zone_time_slot_active": ["Z{n}TimeSlotActive"],
     "hc_min_flow_temp": ["Hc{n}MinFlowTempDesired"],
     "hc_max_flow_temp": ["Hc{n}MaxFlowTempDesired"],
     "hc_min_cool_temp": ["Hc{n}MinCoolTempDesired", "Hc{n}MinCoolingTempDesired"],
@@ -958,6 +981,10 @@ def _analyze(
                 # Without cooling a heat/cool range is meaningless: one target only.
                 cooling_key = None
                 night_key = None
+            if _vocab == MODE_VOCAB_MANUAL:
+                # The newer definitions have no night mode; Z{n}SetbackTemp (which the
+                # old z{n}SetBackTemp alias also matches) is not a second target.
+                night_key = None
 
             if day_key and cooling_key:
                 t_target = None
@@ -1110,6 +1137,64 @@ def _analyze(
                     hw_version=_hw,
                 )
             )
+
+        # --- Zone extras: effective target, setback temperature, time slot ---
+        for zone_entity in [
+            e for e in entities if isinstance(e, DiscoveredClimate) and e.device_id == device_id
+        ]:
+            zone = zone_entity.key.rsplit("zone", 1)[-1]
+            zone_kwargs = dict(
+                device_key=zone_entity.device_key,
+                device_name=zone_entity.device_name,
+                parent_key=prefix,
+                manufacturer=_manufacturer,
+                model=_model,
+                sw_version=_sw,
+                hw_version=_hw,
+            )
+            temps = [
+                ("temp_desired", zone_entity.temp_desired, "effective_target_temperature"),
+            ]
+            sb_key, sb_field = _find_nested(msgs, "zone_setback_temp", n=zone)
+            if sb_key:
+                temps.append(
+                    (
+                        "setback_temp",
+                        _topic_config(prefix, device_id, sb_key, sb_field, writable=False),
+                        "setback_temperature",
+                    )
+                )
+            for suffix, topic_cfg, translation_key in temps:
+                if topic_cfg is None:
+                    continue
+                entities.append(
+                    DiscoveredSensor(
+                        device_id=device_id,
+                        key=f"{zone_entity.key}_{suffix}",
+                        name=translation_key.replace("_", " ").capitalize(),
+                        topic=topic_cfg,
+                        device_class="temperature",
+                        state_class="measurement",
+                        unit="°C",
+                        unique_id_prefix="ebusd_zone",
+                        translation_key=translation_key,
+                        **zone_kwargs,
+                    )
+                )
+            slot_key, slot_field = _find_nested(msgs, "zone_time_slot_active", n=zone)
+            if slot_key:
+                entities.append(
+                    DiscoveredZoneFlag(
+                        device_id=device_id,
+                        key=f"{zone_entity.key}_time_slot_active",
+                        name="Time slot active",
+                        topic=_topic_config(
+                            prefix, device_id, slot_key, slot_field, writable=False
+                        ),
+                        translation_key="time_slot_active",
+                        **zone_kwargs,
+                    )
+                )
 
         # --- Current error codes ---
         err_key = _resolve_key(msgs, "current_error")
