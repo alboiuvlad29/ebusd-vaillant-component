@@ -60,3 +60,14 @@ Created per zone when the controller publishes them (newer ebusd definitions):
 | **Effective target temperature** | `Z{n}TempDesired` | The target the controller is aiming for right now, including the schedule and a heating boost. The climate entity shows it as its target in Time controlled mode. |
 | **Setback temperature** | `Z{n}SetbackTemp` | The reduced temperature outside time slots. |
 | **Time slot active** | `Z{n}TimeSlotActive` | On while a schedule time slot is active. |
+
+## Room sensors
+
+Created when the controller publishes a value for them (so remote units that are not
+connected do not appear):
+
+| Entity | Source | Device |
+|---|---|---|
+| **Room temperature**, **Room humidity** | `RoomTemp`, `RoomHumidity` (the sensoCOMFORT's own sensor) | Controller |
+| **Remote {n} room temperature / humidity** | `VR92Addr{n}RoomTemp`, `VR92Addr{n}RoomHumidity` (VR 92 remote units, n = 1..7) | Controller |
+| **Room humidity** | `Z{n}RoomHumidity` | Zone |

@@ -2,6 +2,12 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.10.0
+
+- Room sensors (upstream issue #14): the sensoCOMFORT's own **Room temperature** and
+  **Room humidity**, **Remote {n} room temperature / humidity** for VR 92 units, and
+  **Room humidity** per zone. Only created when a value is published.
+
 ## 1.9.0
 
 - Zone extras (newer definitions): **Effective target temperature** (`Z{n}TempDesired`),

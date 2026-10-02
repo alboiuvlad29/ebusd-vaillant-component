@@ -131,6 +131,7 @@ class DiscoveredSensor:
     unique_id_prefix: str
     # when set, the entity name comes from translations instead of ``name``
     translation_key: str | None = None
+    translation_placeholders: dict[str, str] | None = None
     # Device-grouping fields (populated by _analyze)
     device_key: str = ""
     device_name: str = ""
@@ -530,6 +531,7 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "current_error": ["Currenterror", "CurrentError"],
     "zone_status": ["Z{n}Status", "z{n}Status"],
     "zone_setback_temp": ["Z{n}SetbackTemp"],
+    "zone_room_humidity": ["Z{n}RoomHumidity", "z{n}RoomHumidity"],
     "zone_time_slot_active": ["Z{n}TimeSlotActive"],
     "hc_min_flow_temp": ["Hc{n}MinFlowTempDesired"],
     "hc_max_flow_temp": ["Hc{n}MaxFlowTempDesired"],
@@ -1138,6 +1140,45 @@ def _analyze(
                 )
             )
 
+        # --- Room sensors: the controller's own sensor and VR 92 remote units ---
+        _ctl_label = DEVICE_TYPE_LABELS.get(device_id.lower(), device_id.upper())
+        room_kwargs = dict(
+            device_key=device_id,
+            device_name=f"{display_name} {_ctl_label}",
+            parent_key=prefix,
+            manufacturer=_manufacturer,
+            model=_model,
+            sw_version=_sw,
+            hw_version=_hw,
+        )
+        room_sources = [("RoomTemp", "RoomHumidity", "room", None)] + [
+            (f"VR92Addr{n}RoomTemp", f"VR92Addr{n}RoomHumidity", f"vr92_{n}", str(n))
+            for n in range(1, 8)
+        ]
+        for temp_msg, hum_msg, suffix, number in room_sources:
+            for msg_name, kind in ((temp_msg, "temperature"), (hum_msg, "humidity")):
+                if msg_name not in msgs:
+                    continue
+                fld = _infer_field(msgs[msg_name])
+                if not _is_number(_get(msgs[msg_name], fld)):
+                    continue  # defined but no unit connected
+                key = "remote_room_" if number else "room_"
+                entities.append(
+                    DiscoveredSensor(
+                        device_id=device_id,
+                        key=f"{device_id}_{suffix}_{kind}",
+                        name=f"{'Remote ' + number + ' r' if number else 'R'}oom {kind}",
+                        topic=_topic_config(prefix, device_id, msg_name, fld, writable=False),
+                        device_class=kind,
+                        state_class="measurement",
+                        unit="°C" if kind == "temperature" else "%",
+                        unique_id_prefix="ebusd_room",
+                        translation_key=f"{key}{kind}",
+                        translation_placeholders={"number": number} if number else None,
+                        **room_kwargs,
+                    )
+                )
+
         # --- Zone extras: effective target, setback temperature, time slot ---
         for zone_entity in [
             e for e in entities if isinstance(e, DiscoveredClimate) and e.device_id == device_id
@@ -1181,6 +1222,26 @@ def _analyze(
                         **zone_kwargs,
                     )
                 )
+            hum_key = _resolve_key(msgs, "zone_room_humidity", n=zone)
+            if hum_key:
+                hum_field = _infer_field(msgs[hum_key])
+                if _is_number(_get(msgs[hum_key], hum_field)):
+                    entities.append(
+                        DiscoveredSensor(
+                            device_id=device_id,
+                            key=f"{zone_entity.key}_room_humidity",
+                            name="Room humidity",
+                            topic=_topic_config(
+                                prefix, device_id, hum_key, hum_field, writable=False
+                            ),
+                            device_class="humidity",
+                            state_class="measurement",
+                            unit="%",
+                            unique_id_prefix="ebusd_zone",
+                            translation_key="room_humidity",
+                            **zone_kwargs,
+                        )
+                    )
             slot_key, slot_field = _find_nested(msgs, "zone_time_slot_active", n=zone)
             if slot_key:
                 entities.append(

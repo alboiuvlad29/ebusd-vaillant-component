@@ -109,6 +109,8 @@ class EbusdSensor(_EbusdNumericSensor):
         super().__init__(hass, config.topic.read_topic, config.topic.field)
         if config.translation_key:
             self._attr_translation_key = config.translation_key
+            if config.translation_placeholders:
+                self._attr_translation_placeholders = config.translation_placeholders
         else:
             self._attr_name = config.name
         self._attr_unique_id = f"{config.unique_id_prefix}_{config.key}"

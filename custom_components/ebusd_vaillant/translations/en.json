@@ -77,6 +77,18 @@
       },
       "setback_temperature": {
         "name": "Setback temperature"
+      },
+      "room_temperature": {
+        "name": "Room temperature"
+      },
+      "room_humidity": {
+        "name": "Room humidity"
+      },
+      "remote_room_temperature": {
+        "name": "Remote {number} room temperature"
+      },
+      "remote_room_humidity": {
+        "name": "Remote {number} room humidity"
       }
     },
     "binary_sensor": {
