@@ -23,6 +23,12 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
+from .activity import (
+    ACTIVITY_COOLING,
+    ACTIVITY_DEFROST,
+    ACTIVITY_HEATING,
+    compute_activity,
+)
 from .const import (
     _STAT_HVAC_ACTION_COOLING,
     _STAT_HVAC_ACTION_HEATING,
@@ -64,6 +70,8 @@ _DATE_FMT = "%d.%m.%Y"
 _TIME_FMT = "%H:%M:%S"
 _QUICK_VETO_CANCEL_DATE = "01.01.2015"
 _QUICK_VETO_CANCEL_TIME = "00:00:00"
+# Z{n}Status / Hc{n}Status values meaning the zone does not ask for heat.
+_ZONE_INACTIVE = frozenset({"0", "false", "inactive", "off", "idle", "standby", "none"})
 # How long an unconfirmed quick-veto target is shown before falling back.
 _PENDING_TARGET_TIMEOUT = timedelta(minutes=10)
 
@@ -179,6 +187,8 @@ class EbusdClimateEntity(ClimateEntity):
 
         self._run_data_statuscode: str | None = None
         self._hc_statuscode: str | None = None
+        self._zone_statuscode: str | None = None
+        self._activity_values: dict[str, Any] = {}
 
         self._attr_supported_features = self._features_for(config)
 
@@ -213,6 +223,13 @@ class EbusdClimateEntity(ClimateEntity):
             "quick_veto_end_time": (config.quick_veto_end_time, self._handle_quick_veto_end_time),
             "run_data_status": (config.run_data_status, self._handle_run_data_statuscode),
             "hc_status": (config.hc_status, self._handle_hc_statuscode),
+            "zone_status": (config.zone_status, self._handle_zone_statuscode),
+            **{
+                f"activity_{name}": (cfg, self._activity_handler(name))
+                for name, cfg in (config.activity.items() if config.activity else [])
+                # the status code is already bound as run_data_status
+                if name != "statuscode"
+            },
         }
 
     async def _apply_bindings(self, config: DiscoveredClimate, seed: bool) -> None:
@@ -280,11 +297,39 @@ class EbusdClimateEntity(ClimateEntity):
         unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
         self._subscriptions[role] = (topic_cfg.read_topic, unsub)
 
+    def _activity_handler(self, name: str) -> Any:
+        @callback
+        def _handle(value: Any) -> None:
+            self._activity_values[name] = value
+            self._attr_hvac_action = self._determine_hvac_action()
+
+        return _handle
+
+    def _zone_active(self) -> bool | None:
+        """Whether this zone is asking for heat (Z{n}Status, else Hc{n}Status); None if unknown."""
+        status = self._zone_statuscode or self._hc_statuscode
+        if status is None:
+            return None
+        return status.strip().lower() not in _ZONE_INACTIVE
+
     @callback
     def _determine_hvac_action(self) -> HVACAction:
-        """Derive hvac_action from current mode, run data status, and per-zone Hc{n}Status."""
+        """Derive hvac_action from the heat pump activity and this zone's status."""
         if self._attr_hvac_mode == HVACMode.OFF:
             return HVACAction.OFF
+
+        activity = compute_activity(self._activity_values)
+        if activity is not None:
+            if activity == ACTIVITY_DEFROST:
+                return HVACAction.DEFROSTING
+            if activity in (ACTIVITY_HEATING, ACTIVITY_COOLING):
+                if self._zone_active() is False:
+                    return HVACAction.IDLE
+                return HVACAction.HEATING if activity == ACTIVITY_HEATING else HVACAction.COOLING
+            # hot water (the heat pump is busy with the cylinder) or idle
+            return HVACAction.IDLE
+
+        # Nothing known about the heat pump yet: fall back to the selected mode.
 
         global_heating = self._run_data_statuscode in _STAT_HVAC_ACTION_HEATING
         global_cooling = self._run_data_statuscode in _STAT_HVAC_ACTION_COOLING
@@ -342,6 +387,12 @@ class EbusdClimateEntity(ClimateEntity):
     @callback
     def _handle_run_data_statuscode(self, value: Any) -> None:
         self._run_data_statuscode = str(value)
+        self._activity_values["statuscode"] = value
+        self._attr_hvac_action = self._determine_hvac_action()
+
+    @callback
+    def _handle_zone_statuscode(self, value: Any) -> None:
+        self._zone_statuscode = str(value)
         self._attr_hvac_action = self._determine_hvac_action()
 
     @callback

@@ -2,6 +2,15 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.4.0
+
+- Truthful `hvac_action`: zones no longer show Heating while the heat pump is idle. The
+  action now comes from the fastest signals ebusd overhears: `Status00` defrost and
+  compressor state, `Status07` warm-water flag and compressor power, `Status01` pump state,
+  and only then the polled `RunDataStatuscode` (which can lag for hours). During a hot
+  water run zones show Idle, during defrost Defrosting. A zone's `Z{n}Status` (or
+  `Hc{n}Status`) is used to show Idle when that zone is not asking for heat.
+
 ## 1.3.0
 
 - Plain-language entity names without "veto": the zone quick veto switch is now

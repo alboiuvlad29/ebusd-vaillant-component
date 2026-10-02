@@ -62,6 +62,8 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.manual_temperature.read_topic if e.manual_temperature else None,
             e.target_temperature.read_topic if e.target_temperature else None,
             e.temp_desired is not None,
+            e.zone_status is not None,
+            e.activity.present() if e.activity else (),
         )
     if isinstance(e, DiscoveredWaterHeater):
         return (
@@ -244,6 +246,8 @@ class EbusdCoordinator:
                     entity.hc_status,
                     entity.manual_temperature,
                     entity.temp_desired,
+                    entity.zone_status,
+                    *([cfg for _, cfg in entity.activity.items()] if entity.activity else []),
                 ]
             for cfg in topic_attrs:
                 if cfg is not None:

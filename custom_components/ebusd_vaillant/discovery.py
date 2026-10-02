@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .activity import ACTIVITY_SOURCES, ActivityTopics
 from .const import (
     COOLING_AUTO,
     COOLING_DISABLED,
@@ -57,6 +58,10 @@ class DiscoveredClimate:
     # Z{n}TempDesired: the target the controller is currently aiming for
     temp_desired: TopicConfig | None = None
     cooling: bool = True
+    # Z{n}Status: whether this zone is currently asking for heat
+    zone_status: TopicConfig | None = None
+    # system-wide heat pump activity signals (hmu Status00/01/07, RunDataStatuscode)
+    activity: ActivityTopics | None = None
     min_temp: float = 5.0
     max_temp: float = 30.0
     temp_step: float = 0.5
@@ -439,6 +444,7 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "hwc_holiday_end_time": ["HwcHolidayEndTime"],
     "run_data_status": ["RunDataStatuscode", "Statuscode"],
     "hc_status": ["Hc{n}Status"],
+    "zone_status": ["Z{n}Status", "z{n}Status"],
     "hc_min_flow_temp": ["Hc{n}MinFlowTempDesired"],
     "hc_max_flow_temp": ["Hc{n}MaxFlowTempDesired"],
     "hc_min_cool_temp": ["Hc{n}MinCoolTempDesired", "Hc{n}MinCoolingTempDesired"],
@@ -606,6 +612,24 @@ def _zone_cooling(
     return global_cooling is not False
 
 
+def _activity_topics(
+    by_device: dict[str, dict[str, Any]], prefix: str, statuscode: TopicConfig | None
+) -> ActivityTopics | None:
+    """Find the heat pump activity signals (see activity.py) across all devices."""
+    found: dict[str, TopicConfig] = {}
+    for role, (message, sub) in ACTIVITY_SOURCES.items():
+        for device_id, msgs in by_device.items():
+            payload = msgs.get(message)
+            if isinstance(payload, dict) and sub in payload:
+                found[role] = _topic_config(
+                    prefix, device_id, message, f"{sub}.value", writable=False
+                )
+                break
+    if not found and statuscode is None:
+        return None
+    return ActivityTopics(statuscode=statuscode, **found)
+
+
 def _topic_config(
     prefix: str,
     device: str,
@@ -672,6 +696,7 @@ def _analyze(
     # Discover manufacturer once (all devices on a Vaillant bus share the same MF).
     _mf = discover_manufacturer(by_device)
     _global_cool = _global_cooling(by_device)
+    _activity = _activity_topics(by_device, prefix, run_data_status_cfg)
 
     for device_id, msgs in by_device.items():
         # Skip ebusd meta-devices that carry no heating entities.
@@ -971,6 +996,13 @@ def _analyze(
                 else None
             )
 
+            zs_key, zs_field = _find_nested(msgs, "zone_status", n=zone)
+            zone_status = (
+                _topic_config(prefix, device_id, zs_key, zs_field, writable=False)
+                if zs_key
+                else None
+            )
+
             hc_status_key, hc_status_field = _find_nested(msgs, "hc_status", n=zone)
             hc_status_cfg = (
                 _topic_config(prefix, device_id, hc_status_key, hc_status_field, writable=False)
@@ -1004,6 +1036,8 @@ def _analyze(
                     manual_temperature=manual_temperature,
                     temp_desired=temp_desired,
                     cooling=cooling,
+                    zone_status=zone_status,
+                    activity=_activity,
                     device_key=f"{device_id}_zone{zone}",
                     device_name=f"{display_name} Zone {zone}",
                     parent_key=prefix,
