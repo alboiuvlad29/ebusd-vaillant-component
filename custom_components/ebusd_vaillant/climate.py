@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.components import mqtt
@@ -20,6 +20,7 @@ from homeassistant.components.climate import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
@@ -55,6 +56,7 @@ from .discovery import (
     _get,
     mode_vocab_from_value,
 )
+from .services import register_entity, unregister_entity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -252,11 +254,42 @@ class EbusdClimateEntity(ClimateEntity):
 
     async def async_added_to_hass(self) -> None:
         await self._apply_bindings(self._config, seed=False)
+        register_entity(self.hass, self)
 
     async def async_will_remove_from_hass(self) -> None:
+        unregister_entity(self.hass, self)
         for _topic, unsub in self._subscriptions.values():
             unsub()
         self._subscriptions.clear()
+
+    # --- services (services.py) ---
+
+    async def async_service_set_quick_veto(
+        self, temperature: float, duration_hours: float | None = None
+    ) -> None:
+        if not self._config.quick_veto_temp or not self._config.quick_veto_temp.write_topic:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_quick_veto",
+                translation_placeholders={"entity_id": self.entity_id},
+            )
+        await self._publish_quick_veto(temperature, duration_hours)
+
+    async def async_service_cancel_quick_veto(self) -> None:
+        await self._cancel_quick_veto()
+
+    async def async_service_set_away(self, start_date: date, end_date: date) -> None:
+        for cfg, day in (
+            (self._config.holiday_start, start_date),
+            (self._config.holiday_end, end_date),
+        ):
+            if cfg and cfg.write_topic:
+                await self._publish(cfg.write_topic, day.strftime(_DATE_FMT))
+
+    async def async_service_cancel_away(self) -> None:
+        for cfg in (self._config.holiday_start, self._config.holiday_end):
+            if cfg and cfg.write_topic:
+                await self._publish(cfg.write_topic, _HOLIDAY_RESET)
 
     async def async_update_config(
         self, config: DiscoveredClimate, coordinator: EbusdCoordinator
@@ -574,14 +607,15 @@ class EbusdClimateEntity(ClimateEntity):
             return
         await self._coordinator.async_write_setpoint(cfg, str(value), skip_unchanged)
 
-    async def _publish_quick_veto(self, temp: float) -> None:
+    async def _publish_quick_veto(self, temp: float, hours: float | None = None) -> None:
         qv = self._config.quick_veto_temp
         if qv and qv.write_topic:
             # writing the quick veto starts it, even when the value is unchanged
             await self._write_setpoint(qv, temp, skip_unchanged=False)
         qd = self._config.quick_veto_duration
         if qd and qd.write_topic:
-            await self._publish(qd.write_topic, str(self._quick_veto_duration))
+            duration = self._quick_veto_duration if hours is None else hours
+            await self._publish(qd.write_topic, f"{duration:g}")
 
     def _writes_setpoint(self) -> bool:
         """Whether a temperature change writes the permanent manual setpoint."""

@@ -198,5 +198,67 @@
       "title": "{device} reports an error",
       "description": "{device} reports error code(s) {codes}. Check the display or the installer manual. This message disappears when the error is cleared."
     }
+  },
+  "services": {
+    "set_quick_veto": {
+      "name": "Start heating boost",
+      "description": "Heats a zone to a temperature for a number of hours (Vaillant quick veto), then returns to its normal behaviour.",
+      "fields": {
+        "temperature": {
+          "name": "Temperature",
+          "description": "Boost temperature."
+        },
+        "duration_hours": {
+          "name": "Duration",
+          "description": "Hours; defaults to the configured quick veto duration."
+        }
+      }
+    },
+    "cancel_quick_veto": {
+      "name": "Cancel heating boost",
+      "description": "Ends a running heating boost (quick veto) on a zone."
+    },
+    "set_away": {
+      "name": "Set away",
+      "description": "Sets away mode (holiday) for a zone or hot water from a start date to an end date.",
+      "fields": {
+        "start_date": {
+          "name": "Start date",
+          "description": "First day away."
+        },
+        "end_date": {
+          "name": "End date",
+          "description": "Last day away."
+        }
+      }
+    },
+    "cancel_away": {
+      "name": "Cancel away",
+      "description": "Ends away mode for a zone or hot water."
+    },
+    "hot_water_boost": {
+      "name": "Hot water boost",
+      "description": "Starts a one-time hot water charge, or cancels it.",
+      "fields": {
+        "enable": {
+          "name": "Start",
+          "description": "On starts the charge, off cancels it."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unsupported_entity": {
+      "message": "{entity_id} does not support {service}."
+    },
+    "no_quick_veto": {
+      "message": "{entity_id} has no quick veto (heating boost)."
+    },
+    "no_hot_water_boost": {
+      "message": "{entity_id} has no hot water boost."
+    },
+    "no_matching_entities": {
+      "message": "No ebusd Vaillant entity in the target supports {service}."
+    }
   }
 }

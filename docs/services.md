@@ -56,3 +56,13 @@ Available on: `EbusdQuickVetoEndEntity`, `EbusdHolidayEntity`
 | Service | Description | Extra Fields |
 |---|---|---|
 | [`set_value`](https://my.home-assistant.io/redirect/developer_call_service/?service=datetime.set_value) | Set the date/time value. | `datetime` (datetime), `date` (date, optional), `time` (time, optional) |
+
+## Automation services
+
+| Service | Target | Fields | What it writes |
+|---|---|---|---|
+| `ebusd_vaillant.set_quick_veto` | zone climate | `temperature` (5-30 °C), `duration_hours` (optional, 0.5-24, default from the options) | `Z{n}QuickVetoTemp`, `Z{n}QuickVetoDuration` |
+| `ebusd_vaillant.cancel_quick_veto` | zone climate | | duration `0`, end date/time reset |
+| `ebusd_vaillant.set_away` | zone climate or water heater | `start_date`, `end_date` | holiday start/end dates |
+| `ebusd_vaillant.cancel_away` | zone climate or water heater | | holiday dates reset |
+| `ebusd_vaillant.hot_water_boost` | water heater | `enable` (default on) | `HwcSFMode` = `load` / `auto` |

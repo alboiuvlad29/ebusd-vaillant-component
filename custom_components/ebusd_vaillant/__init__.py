@@ -22,6 +22,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import EbusdCoordinator
+from .services import async_register_services, async_unregister_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    async_register_services(hass)
 
     if not hass.services.has_service(DOMAIN, SERVICE_DUMP_MQTT):
 
@@ -163,4 +165,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.data.get(DOMAIN):
         hass.services.async_remove(DOMAIN, SERVICE_DUMP_MQTT)
         hass.services.async_remove(DOMAIN, SERVICE_RECORD_TOPIC)
+        async_unregister_services(hass)
     return unloaded
