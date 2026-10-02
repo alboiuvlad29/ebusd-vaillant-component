@@ -179,3 +179,20 @@ async def test_ebus_connected(hass, mqtt_mock, entity_registry_enabled_by_defaul
     assert hass.states.get(entity_id).state == "on"
     await _send(hass, "global/signal", payload(False))
     assert hass.states.get(entity_id).state == "off"
+
+
+async def test_pressure_loss_flag_found_after_polled_pressure(
+    hass, mqtt_mock, entity_registry_enabled_by_default
+):
+    """WaterPressure arrives first, Status07 later: the flag must still be watched."""
+    await _setup(hass)
+    await _send(hass, "ctlv3/WaterPressure", {"value": {"value": 2.1}})
+    entity_id = "binary_sensor.vaillant_low_pressure"
+    assert hass.states.get(entity_id).state == "off"
+
+    status07 = {"displaypressure": {"value": 2.2}, "heatermain_b5_pressureloss": {"value": "off"}}
+    await _send(hass, "hmu/Status07", status07)
+    assert hass.states.get(entity_id).attributes["pressure"] == 2.2  # now the fast source
+    status07["heatermain_b5_pressureloss"] = {"value": "on"}
+    await _send(hass, "hmu/Status07", status07)
+    assert hass.states.get(entity_id).state == "on"

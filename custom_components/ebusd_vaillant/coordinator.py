@@ -89,6 +89,12 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.sf_mode is not None,
             e.mode_vocab,
         )
+    if isinstance(e, DiscoveredPressureMonitor):
+        return (
+            e.key,
+            (e.pressure.read_topic, e.pressure.field) if e.pressure else None,
+            e.pressure_loss is not None,
+        )
     if isinstance(e, DiscoveredOperatingMode):
         return (e.key, e.activity.present(), e.power.read_topic if e.power else None)
     return (type(e).__name__, e.key)
@@ -369,7 +375,9 @@ class EbusdCoordinator:
         if len(parts) < 3:
             return
         device, msg_name = parts[1], parts[2]
-        if device in ("global", "Broadcast") or msg.topic.endswith("/get"):
+        # .../get and .../set are requests (our own writes included), not values: ebusd
+        # republishes the value topic itself once a write succeeded.
+        if device in ("global", "Broadcast") or msg.topic.endswith(("/get", "/set")):
             return
 
         try:

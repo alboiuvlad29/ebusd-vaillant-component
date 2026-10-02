@@ -60,13 +60,17 @@ async def async_setup_entry(
     threshold = entry.options.get(CONF_LOW_PRESSURE, DEFAULT_LOW_PRESSURE)
     async_add_entities([EbusdConnectedBinarySensor(hass, prefix)])
     seen: set[str] = set()
+    monitors: dict[str, EbusdLowPressureBinarySensor] = {}
 
     def _on_discover(entities: list) -> None:
         new = []
         for e in entities:
-            if isinstance(e, DiscoveredPressureMonitor) and e.key not in seen:
-                seen.add(e.key)
-                new.append(EbusdLowPressureBinarySensor(hass, e, threshold))
+            if isinstance(e, DiscoveredPressureMonitor):
+                if e.key in monitors:
+                    hass.async_create_task(monitors[e.key].async_update_config(e))
+                    continue
+                monitors[e.key] = EbusdLowPressureBinarySensor(hass, e, threshold)
+                new.append(monitors[e.key])
             elif isinstance(e, DiscoveredFlag) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdFlagBinarySensor(hass, e))
@@ -95,19 +99,41 @@ class EbusdLowPressureBinarySensor(BinarySensorEntity):
         self._attr_device_info = build_device_info(config)
         self._pressure: float | None = None
         self._pressure_loss: bool | None = None
-        self._unsubscribe: list[Any] = []
+        # role -> ((read topic, field), unsubscribe callback)
+        self._subscriptions: dict[str, tuple[tuple[str, str], Any]] = {}
 
     async def async_added_to_hass(self) -> None:
-        if self._config.pressure:
-            await self._subscribe(self._config.pressure, self._handle_pressure)
-        if self._config.pressure_loss:
-            await self._subscribe(self._config.pressure_loss, self._handle_loss)
+        await self._bind(self._config)
+
+    async def async_update_config(self, config: DiscoveredPressureMonitor) -> None:
+        """Follow better sources found later (e.g. Status07 after the polled pressure)."""
+        self._config = config
+        if self.platform is not None:
+            await self._bind(config)
+            self.async_write_ha_state()
+
+    async def _bind(self, config: DiscoveredPressureMonitor) -> None:
+        for role, cfg, handler in (
+            ("pressure", config.pressure, self._handle_pressure),
+            ("pressure_loss", config.pressure_loss, self._handle_loss),
+        ):
+            source = (cfg.read_topic, cfg.field) if cfg else None
+            current = self._subscriptions.get(role)
+            if current and current[0] == source:
+                continue
+            if current:
+                current[1]()
+                del self._subscriptions[role]
+            if cfg is None:
+                continue
+            self._subscriptions[role] = (source, await self._subscribe(cfg, handler))
 
     async def async_will_remove_from_hass(self) -> None:
-        for unsub in self._unsubscribe:
+        for _source, unsub in self._subscriptions.values():
             unsub()
+        self._subscriptions.clear()
 
-    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
+    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> Any:
         @callback
         def _wrap(msg: mqtt.ReceiveMessage) -> None:
             value = _get(_payload(msg.payload), topic_cfg.field)
@@ -115,7 +141,7 @@ class EbusdLowPressureBinarySensor(BinarySensorEntity):
                 handler(value)
                 self.async_write_ha_state()
 
-        self._unsubscribe.append(await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap))
+        return await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
 
     @callback
     def _handle_pressure(self, value: Any) -> None:
