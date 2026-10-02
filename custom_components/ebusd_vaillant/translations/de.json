@@ -197,6 +197,10 @@
     "device_error": {
       "title": "{device} meldet einen Fehler",
       "description": "{device} meldet Fehlercode(s) {codes}. Prüfe das Display oder die Installationsanleitung. Diese Meldung verschwindet, sobald der Fehler behoben ist."
+    },
+    "old_definitions": {
+      "title": "ebusd nutzt ältere Vaillant-Reglerdefinitionen",
+      "description": "{zones} nutzen noch die älteren ebusd-Reglerdefinitionen (Z1DayTemp, Tag/Nacht-Modi). Sie funktionieren weiter. Die neueren Definitionen aus ebusd-configuration bringen effektive Solltemperatur, Zonenstatus, Raumsensoren und mehr. Ignoriere diese Meldung, wenn du bei den älteren Definitionen bleiben willst."
     }
   },
   "services": {

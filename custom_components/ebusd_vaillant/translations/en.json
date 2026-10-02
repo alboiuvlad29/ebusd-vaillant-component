@@ -197,6 +197,10 @@
     "device_error": {
       "title": "{device} reports an error",
       "description": "{device} reports error code(s) {codes}. Check the display or the installer manual. This message disappears when the error is cleared."
+    },
+    "old_definitions": {
+      "title": "ebusd uses older Vaillant controller definitions",
+      "description": "{zones} still use the older ebusd controller definitions (Z1DayTemp, day/night modes). They keep working. The newer definitions from ebusd-configuration add the effective target temperature, zone status, room sensors and more. Ignore this message if you want to stay on the older definitions."
     }
   },
   "services": {

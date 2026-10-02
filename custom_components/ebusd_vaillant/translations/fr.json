@@ -197,6 +197,10 @@
     "device_error": {
       "title": "{device} signale une erreur",
       "description": "{device} signale le(s) code(s) d'erreur {codes}. Consultez l'écran ou le manuel d'installation. Ce message disparaît une fois l'erreur résolue."
+    },
+    "old_definitions": {
+      "title": "ebusd utilise d'anciennes définitions du régulateur Vaillant",
+      "description": "{zones} utilisent encore les anciennes définitions du régulateur ebusd (Z1DayTemp, modes jour/nuit). Elles continuent de fonctionner. Les nouvelles définitions d'ebusd-configuration ajoutent la consigne effective, l'état des zones, les capteurs d'ambiance et plus. Ignorez ce message si vous voulez rester sur les anciennes définitions."
     }
   }
 }

@@ -197,6 +197,10 @@
     "device_error": {
       "title": "{device} hlásí chybu",
       "description": "{device} hlásí chybový kód(y) {codes}. Zkontrolujte displej nebo instalační příručku. Zpráva zmizí, jakmile bude chyba odstraněna."
+    },
+    "old_definitions": {
+      "title": "ebusd používá starší definice regulátoru Vaillant",
+      "description": "{zones} stále používají starší definice regulátoru ebusd (Z1DayTemp, režimy den/noc). Dál fungují. Novější definice z ebusd-configuration přidávají efektivní cílovou teplotu, stav zóny, senzory místností a další. Pokud chcete zůstat u starších definic, tuto zprávu ignorujte."
     }
   }
 }

@@ -2,6 +2,14 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.13.0
+
+- Diagnostics download with versions, options, cached ebusd messages per circuit and the
+  discovered entity configuration.
+- Repairs hint when a zone still uses the older controller definitions (`Z{n}DayTemp`,
+  day/night modes), with a link to ebusd-configuration. It can be ignored and clears
+  itself after switching to the newer definitions.
+
 ## 1.12.0
 
 - Services for automations: `set_quick_veto` / `cancel_quick_veto` (zones, with an
