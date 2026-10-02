@@ -18,7 +18,35 @@
           "heat": "Manual",
           "off": "Apagado",
           "cool": "Refrigerar"
+        },
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Ninguno",
+              "away": "Ausente",
+              "boost": "Impulso de calefacción"
+            }
+          }
         }
+      }
+    },
+    "switch": {
+      "heating_boost": {
+        "name": "Impulso de calefacción"
+      },
+      "away": {
+        "name": "Ausente"
+      },
+      "hot_water_away": {
+        "name": "Ausente"
+      },
+      "hot_water_boost": {
+        "name": "Boost"
+      }
+    },
+    "datetime": {
+      "heating_boost_end": {
+        "name": "Fin del impulso de calefacción"
       }
     }
   },

@@ -234,6 +234,10 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             )
 
     @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"boost_active": self._sf_mode == "load"} if self._config.sf_mode else {}
+
+    @property
     def is_away_mode_on(self) -> bool | None:
         if not self._holiday_start or not self._holiday_end:
             return None

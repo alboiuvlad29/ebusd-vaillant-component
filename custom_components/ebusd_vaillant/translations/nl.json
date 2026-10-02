@@ -18,7 +18,35 @@
           "heat": "Handmatig",
           "off": "Uit",
           "cool": "Koelen"
+        },
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "Geen",
+              "away": "Afwezig",
+              "boost": "Verwarmingsboost"
+            }
+          }
         }
+      }
+    },
+    "switch": {
+      "heating_boost": {
+        "name": "Verwarmingsboost"
+      },
+      "away": {
+        "name": "Afwezig"
+      },
+      "hot_water_away": {
+        "name": "Afwezig"
+      },
+      "hot_water_boost": {
+        "name": "Boost"
+      }
+    },
+    "datetime": {
+      "heating_boost_end": {
+        "name": "Einde verwarmingsboost"
       }
     }
   },

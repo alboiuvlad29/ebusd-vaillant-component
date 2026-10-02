@@ -18,7 +18,35 @@
           "heat": "Manual",
           "off": "Off",
           "cool": "Cool"
+        },
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "None",
+              "away": "Away",
+              "boost": "Heating boost"
+            }
+          }
         }
+      }
+    },
+    "switch": {
+      "heating_boost": {
+        "name": "Heating boost"
+      },
+      "away": {
+        "name": "Away"
+      },
+      "hot_water_away": {
+        "name": "Away"
+      },
+      "hot_water_boost": {
+        "name": "Boost"
+      }
+    },
+    "datetime": {
+      "heating_boost_end": {
+        "name": "Heating boost end"
       }
     }
   },
