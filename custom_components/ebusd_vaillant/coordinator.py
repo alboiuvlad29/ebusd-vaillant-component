@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry as ir
 
 from .const import (
     _DISCOVERY_TOPICS_HC,
@@ -25,7 +26,10 @@ from .const import (
     DEFAULT_MAX_ZONES,
     DEFAULT_ZONES_WITH_TEMP_ONLY,
     DISCOVERY_DEVICE_NAMES,
+    DOMAIN,
     ESSENTIAL_SENSOR_TOPICS,
+    MODE_VOCAB_DAY,
+    OLD_DEFINITIONS_URL,
     POLL_PRIMING_ALL,
     POLL_PRIMING_OFF,
     PRIORITY_FAST,
@@ -207,6 +211,37 @@ class EbusdCoordinator:
             if poll_priming(self._entry.options) != POLL_PRIMING_OFF:
                 self._schedule_task(self._prime_values(entities), "ebusd prime values")
 
+    def discovered_entities(self) -> list[DiscoveredEntity]:
+        """The entities discovery currently derives from the cached messages."""
+        return self._analyze()
+
+    @callback
+    def _check_old_definitions(self, entities: list[DiscoveredEntity]) -> None:
+        """Suggest the newer ebusd definitions when a zone still uses Z{n}DayTemp."""
+        old = sorted(
+            e.name
+            for e in entities
+            if isinstance(e, DiscoveredClimate)
+            and e.manual_temperature is not None
+            and e.manual_temperature.read_topic.endswith("DayTemp")
+            and e.mode_vocab == MODE_VOCAB_DAY
+        )
+        issue_id = f"old_definitions_{self._prefix}"
+        if old:
+            ir.async_create_issue(
+                self._hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                learn_more_url=OLD_DEFINITIONS_URL,
+                translation_key="old_definitions",
+                translation_placeholders={"zones": ", ".join(old)},
+            )
+        else:
+            ir.async_delete_issue(self._hass, DOMAIN, issue_id)
+
     def _analyze(self) -> list[DiscoveredEntity]:
         options = self._entry.options
         return _analyze(
@@ -352,6 +387,7 @@ class EbusdCoordinator:
         if new_sigs == self._known_entity_sigs:
             return  # no change in entity set or config  -  skip listener calls
         self._known_entity_sigs = new_sigs
+        self._check_old_definitions(entities)
         _LOGGER.debug("Discovered entities: %s", sorted(e.name for e in entities))
         for listener in self._listeners:
             listener(entities)

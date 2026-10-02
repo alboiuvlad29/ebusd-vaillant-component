@@ -197,6 +197,10 @@
     "device_error": {
       "title": "{device} meldt een fout",
       "description": "{device} meldt foutcode(s) {codes}. Controleer het display of de installatiehandleiding. Deze melding verdwijnt zodra de fout is opgelost."
+    },
+    "old_definitions": {
+      "title": "ebusd gebruikt oudere Vaillant-regelaardefinities",
+      "description": "{zones} gebruiken nog de oudere ebusd-regelaardefinities (Z1DayTemp, dag/nacht-modi). Die blijven werken. De nieuwere definities uit ebusd-configuration voegen onder meer de effectieve doeltemperatuur, zonestatus en ruimtesensoren toe. Negeer deze melding als je bij de oudere definities wilt blijven."
     }
   }
 }

@@ -197,6 +197,69 @@
     "device_error": {
       "title": "{device} meldet einen Fehler",
       "description": "{device} meldet Fehlercode(s) {codes}. Prüfe das Display oder die Installationsanleitung. Diese Meldung verschwindet, sobald der Fehler behoben ist."
+    },
+    "old_definitions": {
+      "title": "ebusd nutzt ältere Vaillant-Reglerdefinitionen",
+      "description": "{zones} nutzen noch die älteren ebusd-Reglerdefinitionen (Z1DayTemp, Tag/Nacht-Modi). Sie funktionieren weiter. Die neueren Definitionen aus ebusd-configuration bringen effektive Solltemperatur, Zonenstatus, Raumsensoren und mehr. Ignoriere diese Meldung, wenn du bei den älteren Definitionen bleiben willst."
+    }
+  },
+  "services": {
+    "set_quick_veto": {
+      "name": "Heizungs-Boost starten",
+      "description": "Heizt eine Zone für einige Stunden auf eine Temperatur (Vaillant-Schnellkorrektur) und kehrt dann zum normalen Verhalten zurück.",
+      "fields": {
+        "temperature": {
+          "name": "Temperatur",
+          "description": "Boost-Temperatur."
+        },
+        "duration_hours": {
+          "name": "Dauer",
+          "description": "Stunden; Standard ist die eingestellte Schnellkorrektur-Dauer."
+        }
+      }
+    },
+    "cancel_quick_veto": {
+      "name": "Heizungs-Boost beenden",
+      "description": "Beendet einen laufenden Heizungs-Boost (Schnellkorrektur) einer Zone."
+    },
+    "set_away": {
+      "name": "Abwesenheit setzen",
+      "description": "Setzt den Abwesenheitsmodus (Urlaub) für eine Zone oder Warmwasser von einem Start- bis zu einem Enddatum.",
+      "fields": {
+        "start_date": {
+          "name": "Startdatum",
+          "description": "Erster Tag der Abwesenheit."
+        },
+        "end_date": {
+          "name": "Enddatum",
+          "description": "Letzter Tag der Abwesenheit."
+        }
+      }
+    },
+    "cancel_away": {
+      "name": "Abwesenheit beenden",
+      "description": "Beendet den Abwesenheitsmodus für eine Zone oder Warmwasser."
+    },
+    "hot_water_boost": {
+      "name": "Warmwasser-Boost",
+      "description": "Startet eine einmalige Warmwasserladung oder bricht sie ab.",
+      "fields": {
+        "enable": {
+          "name": "Starten",
+          "description": "An startet die Ladung, aus bricht sie ab."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unsupported_entity": {
+      "message": "{entity_id} unterstützt {service} nicht."
+    },
+    "no_quick_veto": {
+      "message": "{entity_id} hat keine Schnellkorrektur (Heizungs-Boost)."
+    },
+    "no_hot_water_boost": {
+      "message": "{entity_id} hat keinen Warmwasser-Boost."
     }
   },
   "services": {

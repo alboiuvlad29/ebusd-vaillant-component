@@ -66,3 +66,13 @@ Available on: `EbusdQuickVetoEndEntity`, `EbusdHolidayEntity`
 | `ebusd_vaillant.set_away` | zone climate or water heater | `start_date`, `end_date` | holiday start/end dates |
 | `ebusd_vaillant.cancel_away` | zone climate or water heater | | holiday dates reset |
 | `ebusd_vaillant.hot_water_boost` | water heater | `enable` (default on) | `HwcSFMode` = `load` / `auto` |
+
+## Diagnostics and repairs
+
+- **Download diagnostics** (Settings > Devices & services > ebusd Vaillant > three dots):
+  versions, options, every cached ebusd message per circuit and the discovered entity
+  configuration. Nothing is redacted; the topics contain no credentials.
+- A **Repairs** hint appears when a zone still uses the older controller definitions
+  (`Z{n}DayTemp` with the day/night modes). Everything keeps working; the hint points to
+  the newer definitions from ebusd-configuration, can be ignored, and disappears by itself
+  after switching.

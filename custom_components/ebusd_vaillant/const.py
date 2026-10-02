@@ -91,6 +91,7 @@ DEFAULT_TEMPERATURE_WRITE = TEMPERATURE_WRITE_SMART
 # (TypeSpec-based 15.ctlv2/ctlv3) use 0=off;1=auto;2=manual.
 MODE_VOCAB_DAY = "day"
 MODE_VOCAB_MANUAL = "manual"
+OLD_DEFINITIONS_URL = "https://github.com/john30/ebusd-configuration"
 
 # ebusd → HA HVAC mode (heating zones: Z1OpMode, Z2OpMode, hmu/SetMode.hcmode)
 EBUSD_TO_HA_HVAC = {
