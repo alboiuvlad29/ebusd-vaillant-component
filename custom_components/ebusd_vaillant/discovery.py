@@ -1180,12 +1180,17 @@ def _analyze(
                 qv_et_field,
                 writable=not new_defs,
             )
-            sf_key = _resolve_key(msgs, "zone_sf_mode", n=zone) if new_defs else None
-            zone_sf_mode = (
-                _topic_config(prefix, device_id, sf_key, _infer_field(msgs[sf_key]))
-                if sf_key
-                else None
-            )
+            # Always created on the newer definitions (like the holiday and quick veto
+            # topics), so the cancel path exists before the first Z{n}SFMode value arrives.
+            zone_sf_mode = None
+            if new_defs:
+                sf_key = _resolve_key(msgs, "zone_sf_mode", n=zone)
+                zone_sf_mode = _topic_config(
+                    prefix,
+                    device_id,
+                    sf_key or f"Z{zone}SFMode",
+                    _infer_field(msgs[sf_key]) if sf_key else "value.value",
+                )
             has_quick_veto = bool(qv_temp_key or qv_dur_key or qv_ed_key or qv_et_key)
 
             manual_temperature = (
