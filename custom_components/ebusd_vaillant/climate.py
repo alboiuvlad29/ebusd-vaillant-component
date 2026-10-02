@@ -563,10 +563,22 @@ class EbusdClimateEntity(ClimateEntity):
             payload = ebusd_mode
         await self._publish(cfg.write_topic, payload)
 
+    async def _write_setpoint(
+        self, cfg: TopicConfig, value: float, skip_unchanged: bool = True
+    ) -> None:
+        """Setpoint writes go through the coordinator's EEPROM write guard."""
+        if cfg.write_topic is None:
+            return
+        if self._coordinator is None:
+            await self._publish(cfg.write_topic, str(value))
+            return
+        await self._coordinator.async_write_setpoint(cfg, str(value), skip_unchanged)
+
     async def _publish_quick_veto(self, temp: float) -> None:
         qv = self._config.quick_veto_temp
         if qv and qv.write_topic:
-            await self._publish(qv.write_topic, str(temp))
+            # writing the quick veto starts it, even when the value is unchanged
+            await self._write_setpoint(qv, temp, skip_unchanged=False)
         qd = self._config.quick_veto_duration
         if qd and qd.write_topic:
             await self._publish(qd.write_topic, str(self._quick_veto_duration))
@@ -583,7 +595,7 @@ class EbusdClimateEntity(ClimateEntity):
 
     async def _set_heating_target(self, temp: float) -> None:
         if self._writes_setpoint():
-            await self._publish(self._config.manual_temperature.write_topic, str(temp))
+            await self._write_setpoint(self._config.manual_temperature, temp)
             self._attr_target_temperature = temp
             return
         await self._publish_quick_veto(temp)
@@ -599,14 +611,12 @@ class EbusdClimateEntity(ClimateEntity):
         high = kwargs.get("target_temp_high")
         low = kwargs.get("target_temp_low")
         if high is not None and self._config.target_temperature_high:
-            cfg = self._config.target_temperature_high
-            if cfg.write_topic:
-                await self._publish(cfg.write_topic, str(high))
+            await self._write_setpoint(self._config.target_temperature_high, high)
         if low is not None and self._config.target_temperature_low:
             manual = self._config.manual_temperature
             low_cfg = self._config.target_temperature_low
             if self._writes_setpoint() and manual.read_topic == low_cfg.read_topic:
-                await self._publish(manual.write_topic, str(low))
+                await self._write_setpoint(manual, low)
             else:
                 await self._publish_quick_veto(low)
         self.async_write_ha_state()
@@ -734,7 +744,7 @@ class EbusdFlowTempRangeEntity(_EbusdSetpointBase):
     async def async_set_temperature(self, **kwargs: Any) -> None:
         low = kwargs.get("target_temp_low")
         high = kwargs.get("target_temp_high")
-        if low is not None and self._config.min_flow_temp.write_topic:
-            await mqtt.async_publish(self.hass, self._config.min_flow_temp.write_topic, str(low))
-        if high is not None and self._config.max_flow_temp.write_topic:
-            await mqtt.async_publish(self.hass, self._config.max_flow_temp.write_topic, str(high))
+        if low is not None:
+            await self._coordinator.async_write_setpoint(self._config.min_flow_temp, str(low))
+        if high is not None:
+            await self._coordinator.async_write_setpoint(self._config.max_flow_temp, str(high))

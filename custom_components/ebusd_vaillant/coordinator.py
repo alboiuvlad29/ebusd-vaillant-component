@@ -46,6 +46,7 @@ from .discovery import (
     _get,
     discover_manufacturer,
 )
+from .writes import WriteGuard
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -106,6 +107,7 @@ class EbusdCoordinator:
         self._unsub: Callable | None = None
         self._bg_tasks: list[Task] = []
         self._stopping: bool = False
+        self._writes = WriteGuard(hass)
 
     async def async_start(self) -> None:
         self._unsub = await mqtt.async_subscribe(
@@ -153,7 +155,17 @@ class EbusdCoordinator:
                 return
             await mqtt.async_publish(self._hass, topic + "/get", "?1")
 
+    async def async_write_setpoint(
+        self, topic_cfg: TopicConfig, payload: str, skip_unchanged: bool = True
+    ) -> None:
+        """Write a setpoint through the EEPROM write guard (see writes.py)."""
+        if topic_cfg.write_topic is None:
+            return
+        current = self.get_current_value(topic_cfg) if skip_unchanged else None
+        await self._writes.async_write(topic_cfg.write_topic, payload, current)
+
     def async_stop(self) -> None:
+        self._writes.async_stop()
         self._stopping = True
         if self._unsub:
             self._unsub()

@@ -268,9 +268,7 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
-        cfg = self._config.target_temperature
-        if cfg.write_topic:
-            await mqtt.async_publish(self.hass, cfg.write_topic, str(temp))
+        await self._coordinator.async_write_setpoint(self._config.target_temperature, str(temp))
 
     async def async_set_operation_mode(self, operation_mode: str) -> None:
         if operation_mode == "boost":

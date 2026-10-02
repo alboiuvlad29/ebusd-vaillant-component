@@ -102,5 +102,4 @@ class EbusdCoolTempLimitEntity(NumberEntity):
             pass
 
     async def async_set_native_value(self, value: float) -> None:
-        if self._config.cool_temp.write_topic:
-            await mqtt.async_publish(self.hass, self._config.cool_temp.write_topic, str(value))
+        await self._coordinator.async_write_setpoint(self._config.cool_temp, str(value))
