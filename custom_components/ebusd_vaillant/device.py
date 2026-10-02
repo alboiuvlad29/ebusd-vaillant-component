@@ -6,6 +6,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DEFAULT_AREA, DEFAULT_MANUFACTURER, DOMAIN
 
+# HA 2026.10 deprecates DeviceInfo(via_device=identifiers) in favour of the parent's
+# device registry ID (via_device_id); older versions only know via_device.
+_SUPPORTS_VIA_DEVICE_ID = "via_device_id" in DeviceInfo.__annotations__
+
+# MQTT prefix -> device registry ID of the system (parent) device, set on setup
+PARENT_DEVICE_IDS: dict[str, str] = {}
+
 
 def build_device_info(config) -> DeviceInfo:
     """Return a DeviceInfo for *config*, grouping it under the correct HA device.
@@ -27,7 +34,11 @@ def build_device_info(config) -> DeviceInfo:
     if config.hw_version:
         info["hw_version"] = config.hw_version
     if config.device_key != config.parent_key:
-        info["via_device"] = (DOMAIN, config.parent_key)
+        parent_id = PARENT_DEVICE_IDS.get(config.parent_key)
+        if _SUPPORTS_VIA_DEVICE_ID and parent_id:
+            info["via_device_id"] = parent_id
+        else:
+            info["via_device"] = (DOMAIN, config.parent_key)
     return info
 
 

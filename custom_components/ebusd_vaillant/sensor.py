@@ -32,6 +32,7 @@ from .const import DOMAIN
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
 from .discovery import (
+    DiscoveredEffectiveTarget,
     DiscoveredErrorSensor,
     DiscoveredOperatingMode,
     DiscoveredSensor,
@@ -48,6 +49,7 @@ async def async_setup_entry(
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
     seen: set[str] = set()
     followers: dict[str, list[_ActivityFollower]] = {}
+    targets: dict[str, EbusdEffectiveTargetSensor] = {}
 
     def _on_discover(entities: list) -> None:
         new = []
@@ -55,6 +57,12 @@ async def async_setup_entry(
             if isinstance(e, DiscoveredSensor) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdSensor(hass, e))
+            elif isinstance(e, DiscoveredEffectiveTarget):
+                if e.key in targets:
+                    hass.async_create_task(targets[e.key].async_update_config(e))
+                    continue
+                targets[e.key] = EbusdEffectiveTargetSensor(hass, e, coordinator)
+                new.append(targets[e.key])
             elif isinstance(e, DiscoveredTextSensor) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdTextSensor(hass, e))
@@ -439,3 +447,107 @@ class EbusdTextSensor(SensorEntity):
     async def async_will_remove_from_hass(self) -> None:
         if self._unsubscribe:
             self._unsubscribe()
+
+
+_MANUAL_MODES = frozenset({"manual", "day"})
+
+
+class EbusdEffectiveTargetSensor(SensorEntity):
+    """The temperature a zone is aiming for now: boost, schedule or manual setpoint."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "effective_target_temperature"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "°C"
+
+    def __init__(
+        self, hass: HomeAssistant, config: DiscoveredEffectiveTarget, coordinator: EbusdCoordinator
+    ) -> None:
+        self.hass = hass
+        self._config = config
+        self._coordinator = coordinator
+        # same unique ID as the plain Z{n}TempDesired sensor of 1.9.0
+        self._attr_unique_id = f"ebusd_zone_{config.key}"
+        self._attr_device_info = build_device_info(config)
+        self._values: dict[str, Any] = {}
+        # role -> (read topic, unsubscribe callback)
+        self._subscriptions: dict[str, tuple[str, Any]] = {}
+
+    def _sources(self) -> dict[str, Any]:
+        zone = self._config.zone
+        return {
+            "desired": zone.temp_desired,
+            "manual": zone.manual_temperature,
+            "mode": zone.mode,
+            "sf_mode": zone.sf_mode,
+            "veto_temp": zone.quick_veto_temp,
+        }
+
+    async def async_added_to_hass(self) -> None:
+        await self._bind()
+
+    async def async_update_config(self, config: DiscoveredEffectiveTarget) -> None:
+        self._config = config
+        if self.platform is not None:
+            await self._bind()
+            self.async_write_ha_state()
+
+    async def _bind(self) -> None:
+        for role, cfg in self._sources().items():
+            topic = cfg.read_topic if cfg else None
+            current = self._subscriptions.get(role)
+            if current and current[0] == topic:
+                continue
+            if current:
+                current[1]()
+                del self._subscriptions[role]
+                self._values.pop(role, None)
+            if cfg is None:
+                continue
+            unsub = await mqtt.async_subscribe(
+                self.hass, cfg.read_topic, self._handler(role, cfg.field)
+            )
+            self._subscriptions[role] = (cfg.read_topic, unsub)
+            value = self._coordinator.get_current_value(cfg)
+            if value is not None:
+                self._values[role] = value
+        self._attr_native_value = self._compute()
+
+    def _handler(self, role: str, field: str) -> Any:
+        @callback
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except json.JSONDecodeError, ValueError:
+                payload = msg.payload
+            value = _get(payload, field)
+            if value is None:
+                return
+            self._values[role] = value
+            self._attr_native_value = self._compute()
+            self.async_write_ha_state()
+
+        return _handle
+
+    def _number(self, role: str) -> float | None:
+        try:
+            value = float(self._values.get(role))
+        except TypeError, ValueError:
+            return None
+        return value if value > 0 else None
+
+    def _compute(self) -> float | None:
+        if str(self._values.get("sf_mode")) == "veto" and self._number("veto_temp") is not None:
+            return self._number("veto_temp")
+        if (desired := self._number("desired")) is not None:
+            return desired
+        if str(self._values.get("mode")) in _MANUAL_MODES:
+            return self._number("manual")
+        return None
+
+    async def async_will_remove_from_hass(self) -> None:
+        for _topic, unsub in self._subscriptions.values():
+            unsub()
+        self._subscriptions.clear()

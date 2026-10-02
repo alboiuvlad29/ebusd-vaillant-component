@@ -39,6 +39,7 @@ from .const import (
 from .discovery import (
     DiscoveredClimate,
     DiscoveredCoolTempLimit,
+    DiscoveredEffectiveTarget,
     DiscoveredErrorSensor,
     DiscoveredFlag,
     DiscoveredFlowTempRange,
@@ -77,6 +78,7 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.target_temperature.read_topic if e.target_temperature else None,
             e.temp_desired is not None,
             e.zone_status is not None,
+            e.sf_mode is not None,
             e.activity.present() if e.activity else (),
         )
     if isinstance(e, DiscoveredWaterHeater):
@@ -88,6 +90,16 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.holiday_end_time is not None,
             e.sf_mode is not None,
             e.mode_vocab,
+        )
+    if isinstance(e, DiscoveredEffectiveTarget):
+        z = e.zone
+        return (
+            e.key,
+            *(
+                cfg.read_topic if cfg else None
+                for cfg in (z.temp_desired, z.manual_temperature, z.mode, z.sf_mode)
+            ),
+            z.quick_veto_temp.read_topic if z.quick_veto_temp else None,
         )
     if isinstance(e, DiscoveredPressureMonitor):
         return (
@@ -311,6 +323,8 @@ class EbusdCoordinator:
                 add([entity.cool_temp, entity.run_data_status], False)
             elif isinstance(entity, DiscoveredErrorSensor | DiscoveredFlag | DiscoveredTextSensor):
                 add([entity.topic], False)
+            elif isinstance(entity, DiscoveredEffectiveTarget):
+                continue  # all of its topics belong to the zone's climate entity
             elif isinstance(entity, DiscoveredPressureMonitor):
                 continue  # its topics come from the pressure sensor or overheard Status07
             elif isinstance(entity, DiscoveredOperatingMode):
@@ -328,6 +342,7 @@ class EbusdCoordinator:
                         entity.temp_desired,
                         entity.quick_veto_temp,
                         entity.quick_veto_duration,
+                        entity.sf_mode,
                     ],
                     True,
                 )

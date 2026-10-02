@@ -137,8 +137,8 @@ the heat pump is doing, using the freshest signal available:
 | 6 | `RunDataStatuscode` | polled, may lag; used only when nothing above is available |
 
 "Running" means Cooling when the status code is a `cool_*` code, otherwise Heating. A
-zone shows Idle while its `Z{n}Status` (or `Hc{n}Status`) says it is not asking for
-heat. Only when none of these signals has been received does the action follow the
+zone shows Idle while its `Hc{n}Status` says the circuit is off. (`Z{n}Status` is a
+special-function status such as auto, veto or holidayaway, not a heat demand.) Only when none of these signals has been received does the action follow the
 selected mode (Manual shows Heating).
 
 ## Water heater
@@ -205,3 +205,10 @@ temperature limits, minimum cooling temperature) therefore go through a guard, p
 
 Mode, boost and away writes are sent immediately. All writes are logged at debug level
 (`custom_components.ebusd_vaillant.writes`).
+
+## Quick veto (heating boost) on the newer definitions
+
+The newer controller definitions have a writable `Z{n}SFMode` (`auto`, `ventilation`,
+`veto`) and read-only `Z{n}QuickVetoEndDate`/`EndTime`. There, a running boost is detected
+from `Z{n}SFMode = veto`, and cancelling writes `Z{n}SFMode = auto`. With the older
+definitions, cancelling writes duration `0` and resets the end date and time.
