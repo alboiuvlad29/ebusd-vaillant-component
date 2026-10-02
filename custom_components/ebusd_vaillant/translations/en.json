@@ -256,6 +256,9 @@
     },
     "no_hot_water_boost": {
       "message": "{entity_id} has no hot water boost."
+    },
+    "no_matching_entities": {
+      "message": "No ebusd Vaillant entity in the target supports {service}."
     }
   }
 }
