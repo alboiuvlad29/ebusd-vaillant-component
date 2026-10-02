@@ -206,6 +206,31 @@ class DiscoveredPressureMonitor:
     hw_version: str = ""
 
 
+@dataclass
+class DiscoveredOperatingMode:
+    """Heat pump operating mode (see activity.py) and the electricity split by mode."""
+
+    device_id: str
+    key: str
+    name: str
+    activity: ActivityTopics
+    # electrical power input and the factor to kW (PowerConsumptionHmu kW, ...W in W)
+    power: TopicConfig | None = None
+    power_factor: float = 1.0
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+# Electrical power input of the heat pump: (message, factor to kW)
+_POWER_INPUTS = [("PowerConsumptionHmu", 1.0), ("RunDataElectricPowerConsumption", 0.001)]
+
+
 @dataclass(frozen=True)
 class SensorConfig:
     """Descriptor for an auto-discovered numeric sensor.
@@ -1203,6 +1228,42 @@ def _analyze(
                 device_name=display_name,
                 parent_key=prefix,
                 manufacturer=_mf or "",
+            )
+        )
+
+    # --- Heat pump operating mode and electricity split by mode ---
+    if _activity is not None:
+        power_cfg = None
+        power_factor = 1.0
+        for name, factor in _POWER_INPUTS:
+            for d_id, msgs in by_device.items():
+                if name in msgs:
+                    power_cfg = _topic_config(
+                        prefix, d_id, name, _infer_field(msgs[name]), writable=False
+                    )
+                    power_factor = factor
+                    break
+            if power_cfg is not None:
+                break
+        source = next((cfg for _, cfg in _activity.items() if cfg is not None), None)
+        hp_device = source.read_topic.split("/")[1] if source else prefix
+        hp_meta = discover_device_meta(by_device, hp_device)
+        hp_label = DEVICE_TYPE_LABELS.get(hp_device.lower(), hp_device.upper())
+        entities.append(
+            DiscoveredOperatingMode(
+                device_id=hp_device,
+                key=f"{hp_device}_operating_mode",
+                name="Operating mode",
+                activity=_activity,
+                power=power_cfg,
+                power_factor=power_factor,
+                device_key=hp_device,
+                device_name=f"{display_name} {hp_label}",
+                parent_key=prefix,
+                manufacturer=_mf or "",
+                model=hp_meta.get("model", ""),
+                sw_version=hp_meta.get("sw_version", ""),
+                hw_version=hp_meta.get("hw_version", ""),
             )
         )
 

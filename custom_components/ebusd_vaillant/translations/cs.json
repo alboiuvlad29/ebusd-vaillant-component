@@ -52,6 +52,25 @@
     "sensor": {
       "current_error": {
         "name": "Aktuální chyba"
+      },
+      "operating_mode": {
+        "name": "Provozní režim",
+        "state": {
+          "heating": "Topení",
+          "cooling": "Chlazení",
+          "hot_water": "Teplá voda",
+          "defrost": "Odmrazování",
+          "idle": "Nečinný"
+        }
+      },
+      "energy_heating": {
+        "name": "Elektrická energie topení"
+      },
+      "energy_hot_water": {
+        "name": "Elektrická energie teplá voda"
+      },
+      "energy_standby": {
+        "name": "Elektrická energie pohotovost"
       }
     },
     "binary_sensor": {

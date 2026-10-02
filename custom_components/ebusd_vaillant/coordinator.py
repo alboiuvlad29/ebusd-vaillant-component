@@ -37,6 +37,7 @@ from .discovery import (
     DiscoveredCoolTempLimit,
     DiscoveredErrorSensor,
     DiscoveredFlowTempRange,
+    DiscoveredOperatingMode,
     DiscoveredPressureMonitor,
     DiscoveredSensor,
     DiscoveredWaterHeater,
@@ -81,6 +82,8 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.sf_mode is not None,
             e.mode_vocab,
         )
+    if isinstance(e, DiscoveredOperatingMode):
+        return (e.key, e.activity.present(), e.power.read_topic if e.power else None)
     return (type(e).__name__, e.key)
 
 
@@ -255,6 +258,9 @@ class EbusdCoordinator:
                 add([entity.topic], False)
             elif isinstance(entity, DiscoveredPressureMonitor):
                 continue  # its topics come from the pressure sensor or overheard Status07
+            elif isinstance(entity, DiscoveredOperatingMode):
+                # Status messages are overheard; the power input is primed with the sensors
+                add([entity.power], True)
             else:  # DiscoveredClimate
                 add(
                     [

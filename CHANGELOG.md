@@ -2,6 +2,15 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.7.0
+
+- New **Operating mode** sensor on the heat pump (heating / cooling / hot water / defrost /
+  idle), from the same signals as the truthful HVAC action.
+- New **Electrical energy heating / hot water / standby** sensors (kWh, total increasing,
+  restored after restarts) that split the heat pump's electrical power input by
+  operating mode.
+- Both are new entities and **disabled by default**.
+
 ## 1.6.0
 
 - Faults and health entities, all **disabled by default** (enable them when wanted):

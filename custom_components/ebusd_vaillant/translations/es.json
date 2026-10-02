@@ -52,6 +52,25 @@
     "sensor": {
       "current_error": {
         "name": "Error actual"
+      },
+      "operating_mode": {
+        "name": "Modo de funcionamiento",
+        "state": {
+          "heating": "Calefacción",
+          "cooling": "Refrigeración",
+          "hot_water": "ACS",
+          "defrost": "Desescarche",
+          "idle": "Inactivo"
+        }
+      },
+      "energy_heating": {
+        "name": "Energía eléctrica calefacción"
+      },
+      "energy_hot_water": {
+        "name": "Energía eléctrica ACS"
+      },
+      "energy_standby": {
+        "name": "Energía eléctrica en espera"
       }
     },
     "binary_sensor": {

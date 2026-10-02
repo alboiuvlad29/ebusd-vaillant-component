@@ -52,6 +52,25 @@
     "sensor": {
       "current_error": {
         "name": "Current error"
+      },
+      "operating_mode": {
+        "name": "Operating mode",
+        "state": {
+          "heating": "Heating",
+          "cooling": "Cooling",
+          "hot_water": "Hot water",
+          "defrost": "Defrost",
+          "idle": "Idle"
+        }
+      },
+      "energy_heating": {
+        "name": "Electrical energy heating"
+      },
+      "energy_hot_water": {
+        "name": "Electrical energy hot water"
+      },
+      "energy_standby": {
+        "name": "Electrical energy standby"
       }
     },
     "binary_sensor": {
