@@ -77,6 +77,18 @@
       },
       "setback_temperature": {
         "name": "Útlumová teplota"
+      },
+      "room_temperature": {
+        "name": "Teplota místnosti"
+      },
+      "room_humidity": {
+        "name": "Vlhkost místnosti"
+      },
+      "remote_room_temperature": {
+        "name": "Dálkové ovládání {number} teplota místnosti"
+      },
+      "remote_room_humidity": {
+        "name": "Dálkové ovládání {number} vlhkost místnosti"
       }
     },
     "binary_sensor": {

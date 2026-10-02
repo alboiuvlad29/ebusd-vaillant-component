@@ -77,6 +77,18 @@
       },
       "setback_temperature": {
         "name": "Verlaagde temperatuur"
+      },
+      "room_temperature": {
+        "name": "Ruimtetemperatuur"
+      },
+      "room_humidity": {
+        "name": "Ruimtevochtigheid"
+      },
+      "remote_room_temperature": {
+        "name": "Afstandsbediening {number} ruimtetemperatuur"
+      },
+      "remote_room_humidity": {
+        "name": "Afstandsbediening {number} ruimtevochtigheid"
       }
     },
     "binary_sensor": {

@@ -77,6 +77,18 @@
       },
       "setback_temperature": {
         "name": "Temperatura ridotta"
+      },
+      "room_temperature": {
+        "name": "Temperatura ambiente"
+      },
+      "room_humidity": {
+        "name": "Umidità ambiente"
+      },
+      "remote_room_temperature": {
+        "name": "Comando remoto {number} temperatura ambiente"
+      },
+      "remote_room_humidity": {
+        "name": "Comando remoto {number} umidità ambiente"
       }
     },
     "binary_sensor": {

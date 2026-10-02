@@ -77,6 +77,18 @@
       },
       "setback_temperature": {
         "name": "Absenktemperatur"
+      },
+      "room_temperature": {
+        "name": "Raumtemperatur"
+      },
+      "room_humidity": {
+        "name": "Raumluftfeuchte"
+      },
+      "remote_room_temperature": {
+        "name": "Fernbedienung {number} Raumtemperatur"
+      },
+      "remote_room_humidity": {
+        "name": "Fernbedienung {number} Raumluftfeuchte"
       }
     },
     "binary_sensor": {
