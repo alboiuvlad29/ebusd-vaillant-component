@@ -3,10 +3,21 @@
     "water_heater": {
       "ebusd_water_heater": {
         "state": {
-          "auto": "Automaticky",
+          "auto": "Časově řízeno",
           "day": "Ručně",
           "manual": "Ručně",
-          "boost": "Boost"
+          "boost": "Boost",
+          "off": "Vypnuto"
+        }
+      }
+    },
+    "climate": {
+      "ebusd_zone": {
+        "state": {
+          "auto": "Časově řízeno",
+          "heat": "Ručně",
+          "off": "Vypnuto",
+          "cool": "Chlazení"
         }
       }
     }
