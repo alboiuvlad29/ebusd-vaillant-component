@@ -22,6 +22,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import EbusdCoordinator
+from .device import PARENT_DEVICE_IDS
 from .services import async_register_services, async_unregister_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,13 +72,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # via via_device=(DOMAIN, prefix) before their own entities are created.
     # async_get_or_create is idempotent; repeated calls on reload just update
     # the existing entry (e.g. with a freshly discovered manufacturer).
-    dr.async_get(hass).async_get_or_create(
+    parent = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, prefix)},
         name=display_name,
         manufacturer=coordinator.manufacturer,
         suggested_area=DEFAULT_AREA,
     )
+    PARENT_DEVICE_IDS[prefix] = parent.id
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async_register_services(hass)

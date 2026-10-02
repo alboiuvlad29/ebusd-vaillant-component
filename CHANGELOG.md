@@ -2,6 +2,27 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.13.2
+
+Fixes from the first live install on the newer controller definitions:
+
+- **Heating boost (quick veto) on the newer definitions:** cancelling now writes
+  `Z{n}SFMode = auto`; the controller ignored duration 0, and the end date/time are
+  read-only there (no more "write message not found" in the ebusd log). A running boost
+  is detected from `Z{n}SFMode = veto` immediately, the Heating boost switch and the
+  Boost preset turn off when it returns to `auto`. Old definitions behave as before.
+- **Flow temperature limits:** the newer names `Hc{n}HeatingFlowTempMin/Max` (and
+  `Hc{n}CoolingFlowTempMin`) are used, ahead of stale retained values of the old names.
+- **Effective target temperature** shows the boost temperature during a quick veto, the
+  schedule target in time-controlled mode and the manual setpoint in Manual mode
+  (`Z{n}TempDesired` is 0 outside time-controlled mode). Same entity ID as before.
+- **No more "off" after a reload:** zones take their mode from the values already
+  received, and show unknown (not off) until a mode is known.
+- `Z{n}Status` is a special-function status (auto, veto, holidayaway, ...), not a heat
+  demand; it no longer affects the HVAC action. `Hc{n}Status` still does.
+- Devices link to the system device with `via_device_id` on Home Assistant versions that
+  support it (deprecation of `via_device` in 2026.10). The manifest points to this fork.
+
 ## 1.13.1
 
 - Fix: the **Low pressure** binary sensor now picks up `Status07` (fast pressure and the

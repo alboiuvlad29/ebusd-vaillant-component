@@ -58,8 +58,11 @@ class DiscoveredClimate:
     # Z{n}TempDesired: the target the controller is currently aiming for
     temp_desired: TopicConfig | None = None
     cooling: bool = True
-    # Z{n}Status: whether this zone is currently asking for heat
+    # Z{n}Status: special-function status (auto/ventilation/veto/holidayaway/load/off)
     zone_status: TopicConfig | None = None
+    # Z{n}SFMode (newer definitions, auto/ventilation/veto): quick veto state, and
+    # writing "auto" ends a quick veto
+    sf_mode: TopicConfig | None = None
     # system-wide heat pump activity signals (hmu Status00/01/07, RunDataStatuscode)
     activity: ActivityTopics | None = None
     min_temp: float = 5.0
@@ -181,6 +184,28 @@ class DiscoveredFlag:
     name: str
     topic: TopicConfig
     translation_key: str
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+@dataclass
+class DiscoveredEffectiveTarget:
+    """The temperature a zone is aiming for right now, whatever its mode.
+
+    Z{n}TempDesired is only filled in time-controlled mode (0 otherwise), so the
+    entity combines it with the manual setpoint and the quick veto temperature.
+    """
+
+    device_id: str
+    key: str
+    name: str
+    zone: DiscoveredClimate
     # Device-grouping fields (populated by _analyze)
     device_key: str = ""
     device_name: str = ""
@@ -536,6 +561,7 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "cooling_release": ["releasecooling"],
     "zone_quick_veto_temp": ["Z{n}QuickVetoTemp"],
     "zone_quick_veto_duration": ["Z{n}QuickVetoDuration"],
+    "zone_sf_mode": ["Z{n}SFMode"],
     "zone_quick_veto_end_date": ["Z{n}QuickVetoEndDate"],
     "zone_quick_veto_end_time": ["Z{n}QuickVetoEndTime"],
     "zone_holiday_start_time": ["z{n}HolidayStartTime", "Z{n}HolidayStartTime"],
@@ -552,9 +578,14 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "zone_setback_temp": ["Z{n}SetbackTemp"],
     "zone_room_humidity": ["Z{n}RoomHumidity", "z{n}RoomHumidity"],
     "zone_time_slot_active": ["Z{n}TimeSlotActive"],
-    "hc_min_flow_temp": ["Hc{n}MinFlowTempDesired"],
-    "hc_max_flow_temp": ["Hc{n}MaxFlowTempDesired"],
-    "hc_min_cool_temp": ["Hc{n}MinCoolTempDesired", "Hc{n}MinCoolingTempDesired"],
+    # newer definitions first: retained values of the old names may linger on the broker
+    "hc_min_flow_temp": ["Hc{n}HeatingFlowTempMin", "Hc{n}MinFlowTempDesired"],
+    "hc_max_flow_temp": ["Hc{n}HeatingFlowTempMax", "Hc{n}MaxFlowTempDesired"],
+    "hc_min_cool_temp": [
+        "Hc{n}CoolingFlowTempMin",
+        "Hc{n}MinCoolTempDesired",
+        "Hc{n}MinCoolingTempDesired",
+    ],
     "hc_current_flow_temp": ["Hc{n}FlowTemp", "DisplayedHc{n}FlowTemp", "Hc{n}FlowTempCurrent"],
 }
 
@@ -1128,6 +1159,9 @@ def _analyze(
                 qv_dur_key or f"Z{zone}QuickVetoDuration",
                 qv_dur_field,
             )
+            # The newer definitions have read-only end date/time; a quick veto is ended
+            # by writing Z{n}SFMode = auto instead.
+            new_defs = _vocab == MODE_VOCAB_MANUAL
             qv_ed_key = _resolve_key(msgs, "zone_quick_veto_end_date", n=zone)
             qv_ed_field = _infer_field(msgs[qv_ed_key]) if qv_ed_key else "value.value"
             quick_veto_end_date = _topic_config(
@@ -1135,6 +1169,7 @@ def _analyze(
                 device_id,
                 qv_ed_key or f"Z{zone}QuickVetoEndDate",
                 qv_ed_field,
+                writable=not new_defs,
             )
             qv_et_key = _resolve_key(msgs, "zone_quick_veto_end_time", n=zone)
             qv_et_field = _infer_field(msgs[qv_et_key]) if qv_et_key else "value.value"
@@ -1143,6 +1178,13 @@ def _analyze(
                 device_id,
                 qv_et_key or f"Z{zone}QuickVetoEndTime",
                 qv_et_field,
+                writable=not new_defs,
+            )
+            sf_key = _resolve_key(msgs, "zone_sf_mode", n=zone) if new_defs else None
+            zone_sf_mode = (
+                _topic_config(prefix, device_id, sf_key, _infer_field(msgs[sf_key]))
+                if sf_key
+                else None
             )
             has_quick_veto = bool(qv_temp_key or qv_dur_key or qv_ed_key or qv_et_key)
 
@@ -1199,6 +1241,7 @@ def _analyze(
                     temp_desired=temp_desired,
                     cooling=cooling,
                     zone_status=zone_status,
+                    sf_mode=zone_sf_mode,
                     activity=_activity,
                     device_key=f"{device_id}_zone{zone}",
                     device_name=f"{display_name} Zone {zone}",
@@ -1263,9 +1306,17 @@ def _analyze(
                 sw_version=_sw,
                 hw_version=_hw,
             )
-            temps = [
-                ("temp_desired", zone_entity.temp_desired, "effective_target_temperature"),
-            ]
+            if zone_entity.temp_desired is not None:
+                entities.append(
+                    DiscoveredEffectiveTarget(
+                        device_id=device_id,
+                        key=f"{zone_entity.key}_temp_desired",
+                        name="Effective target temperature",
+                        zone=zone_entity,
+                        **zone_kwargs,
+                    )
+                )
+            temps = []
             sb_key, sb_field = _find_nested(msgs, "zone_setback_temp", n=zone)
             if sb_key:
                 temps.append(

@@ -175,16 +175,31 @@ async def test_defrost(hass, mqtt_mock):
 
 
 async def test_zone_not_asking_for_heat_is_idle(hass, mqtt_mock):
+    """Hc{n}Status (on/off) tells whether the zone's circuit is active."""
     await _setup(
         hass,
         {
             "ebusd/hmu/Status01": _status01("on"),
-            "ebusd/ctlv3/Z1Status": {"value": {"value": "off"}},
+            "ebusd/ctlv3/Hc1Status": {"value": {"value": "off"}},
         },
     )
     assert _action(hass) == HVACAction.IDLE
-    await _send(hass, "ctlv3/Z1Status", {"value": {"value": "heating"}})
+    await _send(hass, "ctlv3/Hc1Status", {"value": {"value": "on"}})
     assert _action(hass) == HVACAction.HEATING
+
+
+async def test_zone_special_function_status_is_not_heat_demand(hass, mqtt_mock):
+    """Z1Status is auto/veto/holidayaway/...: 'auto' must not make a zone idle or active."""
+    await _setup(
+        hass,
+        {
+            "ebusd/hmu/Status01": _status01("on"),
+            "ebusd/ctlv3/Z1Status": {"value": {"value": "auto"}},
+        },
+    )
+    assert _action(hass) == HVACAction.HEATING
+    await _send(hass, "hmu/Status01", _status01("off"))
+    assert _action(hass) == HVACAction.IDLE
 
 
 async def test_off_mode_stays_off(hass, mqtt_mock):

@@ -342,6 +342,7 @@ class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
         self._quick_veto_end_time: str | None = None
         self._boost_temperature: float | None = None
         self._boost_duration: float | None = None
+        self._sf_mode: str | None = None
         self._unsubscribe: list[Any] = []
         self._cancel_end_timer: Any = None
 
@@ -354,6 +355,8 @@ class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
             await self._subscribe(self._config.quick_veto_temp, self._handle_temperature)
         if self._config.quick_veto_duration:
             await self._subscribe(self._config.quick_veto_duration, self._handle_duration)
+        if self._config.sf_mode:
+            await self._subscribe(self._config.sf_mode, self._handle_sf_mode)
 
     async def async_will_remove_from_hass(self) -> None:
         for unsub in self._unsubscribe:
@@ -390,6 +393,10 @@ class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
             self._boost_temperature = float(value)
         except TypeError, ValueError:
             self._boost_temperature = None
+
+    @callback
+    def _handle_sf_mode(self, value: Any) -> None:
+        self._sf_mode = str(value)
 
     @callback
     def _handle_duration(self, value: Any) -> None:
@@ -434,13 +441,16 @@ class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
+        if self._config.sf_mode is not None and self._sf_mode is not None:
+            # newer definitions: Z{n}SFMode = veto while the quick veto runs
+            return self._sf_mode == "veto"
         end = self._end()
         return end is not None and end > datetime.now()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         end = self._end()
-        active = end is not None and end > datetime.now()
+        active = self.is_on and end is not None and end > datetime.now()
         return {
             "boost_temperature": self._boost_temperature,
             "boost_duration_hours": self._boost_duration,
@@ -460,6 +470,11 @@ class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
             await self._publish(qd.write_topic, str(self._quick_veto_duration))
 
     async def async_turn_off(self, **kwargs: Any) -> None:
+        sf_mode = self._config.sf_mode
+        if sf_mode is not None and sf_mode.write_topic:
+            # newer definitions ignore duration 0 and have read-only end date/time
+            await self._publish(sf_mode.write_topic, "auto")
+            return
         qd = self._config.quick_veto_duration
         if qd and qd.write_topic:
             await self._publish(qd.write_topic, "0")

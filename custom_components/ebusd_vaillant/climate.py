@@ -167,8 +167,11 @@ class EbusdClimateEntity(ClimateEntity):
         self._attr_hvac_modes = [_HA_HVAC_MODE[m] for m in config.hvac_modes if m in _HA_HVAC_MODE]
         self._mode_vocab = config.mode_vocab
         self._mode_vocab_observed = False
-        self._attr_hvac_mode = HVACMode.OFF
-        self._attr_hvac_action = HVACAction.OFF
+        # unknown until the first OpMode value arrives (not "off", which could
+        # trigger automations right after a reload)
+        self._attr_hvac_mode: HVACMode | None = None
+        self._attr_hvac_action: HVACAction | None = None
+        self._sf_mode: str | None = None
 
         self._attr_current_temperature: float | None = None
         self._attr_target_temperature: float | None = None
@@ -226,6 +229,7 @@ class EbusdClimateEntity(ClimateEntity):
             "run_data_status": (config.run_data_status, self._handle_run_data_statuscode),
             "hc_status": (config.hc_status, self._handle_hc_statuscode),
             "zone_status": (config.zone_status, self._handle_zone_statuscode),
+            "sf_mode": (config.sf_mode, self._handle_sf_mode),
             **{
                 f"activity_{name}": (cfg, self._activity_handler(name))
                 for name, cfg in (config.activity.items() if config.activity else [])
@@ -253,7 +257,9 @@ class EbusdClimateEntity(ClimateEntity):
                     handler(value)
 
     async def async_added_to_hass(self) -> None:
-        await self._apply_bindings(self._config, seed=False)
+        # seed from the coordinator cache: the values that led to discovery (OpMode
+        # included) arrived before this entity subscribed
+        await self._apply_bindings(self._config, seed=True)
         register_entity(self.hass, self)
 
     async def async_will_remove_from_hass(self) -> None:
@@ -339,15 +345,21 @@ class EbusdClimateEntity(ClimateEntity):
         return _handle
 
     def _zone_active(self) -> bool | None:
-        """Whether this zone is asking for heat (Z{n}Status, else Hc{n}Status); None if unknown."""
-        status = self._zone_statuscode or self._hc_statuscode
+        """Whether this zone's circuit is active (Hc{n}Status on/off); None if unknown.
+
+        Z{n}Status is a special-function status (auto, veto, holidayaway, ...), not
+        a heat demand, so it is not used here.
+        """
+        status = self._hc_statuscode
         if status is None:
             return None
         return status.strip().lower() not in _ZONE_INACTIVE
 
     @callback
-    def _determine_hvac_action(self) -> HVACAction:
+    def _determine_hvac_action(self) -> HVACAction | None:
         """Derive hvac_action from the heat pump activity and this zone's status."""
+        if self._attr_hvac_mode is None:
+            return None
         if self._attr_hvac_mode == HVACMode.OFF:
             return HVACAction.OFF
 
@@ -424,6 +436,10 @@ class EbusdClimateEntity(ClimateEntity):
         self._attr_hvac_action = self._determine_hvac_action()
 
     @callback
+    def _handle_sf_mode(self, value: Any) -> None:
+        self._sf_mode = str(value)
+
+    @callback
     def _handle_zone_statuscode(self, value: Any) -> None:
         self._zone_statuscode = str(value)
         self._attr_hvac_action = self._determine_hvac_action()
@@ -451,6 +467,10 @@ class EbusdClimateEntity(ClimateEntity):
     def _handle_temp_desired(self, value: Any) -> None:
         desired = _float_or_none(value)
         if desired is None:
+            return
+        if desired <= 0:
+            # the newer definitions report 0 outside time-controlled mode
+            self._temp_desired = None
             return
         self._temp_desired = desired
         if self._pending_target is not None and desired != self._pending_desired:
@@ -518,7 +538,11 @@ class EbusdClimateEntity(ClimateEntity):
     def preset_mode(self) -> str | None:
         if not (self._attr_supported_features & ClimateEntityFeature.PRESET_MODE):
             return None
-        if self._quick_veto_end_date and self._quick_veto_end_time:
+        if self._config.sf_mode is not None and self._sf_mode is not None:
+            # newer definitions: Z{n}SFMode says it directly (polled faster than the end)
+            if self._sf_mode == "veto":
+                return PRESET_BOOST
+        elif self._quick_veto_end_date and self._quick_veto_end_time:
             try:
                 veto_end = datetime.strptime(
                     f"{self._quick_veto_end_date} {self._quick_veto_end_time}",
@@ -544,6 +568,11 @@ class EbusdClimateEntity(ClimateEntity):
         await mqtt.async_publish(self.hass, topic, payload)
 
     async def _cancel_quick_veto(self) -> None:
+        sf_mode = self._config.sf_mode
+        if sf_mode is not None and sf_mode.write_topic:
+            # newer definitions ignore duration 0 and have read-only end date/time
+            await self._publish(sf_mode.write_topic, "auto")
+            return
         if self._config.quick_veto_duration and self._config.quick_veto_duration.write_topic:
             await self._publish(self._config.quick_veto_duration.write_topic, "0")
         if self._config.quick_veto_end_date and self._config.quick_veto_end_date.write_topic:

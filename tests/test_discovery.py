@@ -5,6 +5,7 @@ import pytest
 from custom_components.ebusd_vaillant.discovery import (
     DiscoveredClimate,
     DiscoveredCoolTempLimit,
+    DiscoveredEffectiveTarget,
     DiscoveredErrorSensor,
     DiscoveredFlag,
     DiscoveredFlowTempRange,
@@ -48,7 +49,8 @@ def test_entity_types_are_valid(data_file):
             | DiscoveredPressureMonitor
             | DiscoveredOperatingMode
             | DiscoveredFlag
-            | DiscoveredTextSensor,
+            | DiscoveredTextSensor
+            | DiscoveredEffectiveTarget,
         )
 
 
