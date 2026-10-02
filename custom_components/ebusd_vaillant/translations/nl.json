@@ -89,6 +89,15 @@
       },
       "remote_room_humidity": {
         "name": "Afstandsbediening {number} ruimtevochtigheid"
+      },
+      "hot_water_status": {
+        "name": "Warmwaterstatus"
+      },
+      "legionella_day": {
+        "name": "Legionellabescherming dag"
+      },
+      "legionella_time": {
+        "name": "Legionellabescherming tijd"
       }
     },
     "binary_sensor": {
@@ -100,6 +109,14 @@
       },
       "time_slot_active": {
         "name": "Tijdvenster actief"
+      },
+      "reheating_active": {
+        "name": "Naverwarmen actief"
+      }
+    },
+    "button": {
+      "hot_water_boost_start": {
+        "name": "Boost starten"
       }
     }
   },
@@ -137,7 +154,8 @@
           "cooling": "Koeling",
           "temperature_write": "Temperatuurwijzigingen",
           "poll_priming": "Pollingprioriteiten",
-          "low_pressure_threshold": "Drempel lage druk (bar)"
+          "low_pressure_threshold": "Drempel lage druk (bar)",
+          "hot_water_boost_as_mode": "Boost tonen als warmwatermodus (verouderd)"
         },
         "data_description": {
           "away_mode_duration": "Aantal dagen dat de afwezigheidsmodus duurt wanneer geactiveerd (standaard: 7)",
@@ -147,7 +165,8 @@
           "cooling": "Of zones koeling aanbieden (verwarm/koel-doelbereik en koelmodus). Auto beslist op basis van wat het systeem meldt, bijv. Hc1CoolingEnabled of de koelopbrengst. Zonder koeling heeft elke zone één doeltemperatuur.",
           "temperature_write": "Wat het wijzigen van de doeltemperatuur schrijft. Slim: in Handmatig de vaste setpoint, in Tijdgestuurd een tijdelijk snel veto. Altijd snel veto: gedrag vóór 1.1.0.",
           "poll_priming": "Welke waarden de integratie door ebusd laat pollen, en hoe vaak. Essentieel snel: modi, setpoints, ruimte- en warmwatertemperaturen, boost- en vermogenswaarden snel (?1), de rest langzaam (?5). Alles snel: alle waarden op ?1. Uit: alleen de eigen polling van ebusd.",
-          "low_pressure_threshold": "De binaire sensor Lage druk gaat aan onder deze systeemdruk (standaard: 1,5)"
+          "low_pressure_threshold": "De binaire sensor Lage druk gaat aan onder deze systeemdruk (standaard: 1,5)",
+          "hot_water_boost_as_mode": "Boost tonen als vierde modus op de boiler, zoals vóór 1.11.0. Boost zit nu op de Boost-schakelaar en -knop; deze optie verdwijnt in een latere versie."
         }
       }
     }

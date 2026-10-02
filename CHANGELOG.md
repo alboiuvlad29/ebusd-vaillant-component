@@ -2,6 +2,18 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.11.0
+
+- **Boost is no longer a hot water mode.** The water heater's operation list shows only
+  the real modes (Time controlled / Manual / Off), and the current operation always shows
+  the real mode, also while a boost charge runs. Changing the mode no longer cancels a
+  running boost. Use the **Boost** switch or the new **Start boost** button; the water
+  heater's `boost_active` attribute shows a running charge.
+  The previous behaviour is available for one more release with the option
+  **Show boost as a hot water mode (legacy)**.
+- New hot water sensors: **Hot water status**, **Reheating active**, **Legionella
+  protection day / time** (when the controller publishes them).
+
 ## 1.10.0
 
 - Room sensors (upstream issue #14): the sensoCOMFORT's own **Room temperature** and

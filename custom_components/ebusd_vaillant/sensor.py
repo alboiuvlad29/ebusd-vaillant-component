@@ -31,7 +31,13 @@ from .activity import (
 from .const import DOMAIN
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
-from .discovery import DiscoveredErrorSensor, DiscoveredOperatingMode, DiscoveredSensor, _get
+from .discovery import (
+    DiscoveredErrorSensor,
+    DiscoveredOperatingMode,
+    DiscoveredSensor,
+    DiscoveredTextSensor,
+    _get,
+)
 
 
 async def async_setup_entry(
@@ -49,6 +55,9 @@ async def async_setup_entry(
             if isinstance(e, DiscoveredSensor) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdSensor(hass, e))
+            elif isinstance(e, DiscoveredTextSensor) and e.key not in seen:
+                seen.add(e.key)
+                new.append(EbusdTextSensor(hass, e))
             elif isinstance(e, DiscoveredErrorSensor) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdErrorSensor(hass, e))
@@ -394,3 +403,39 @@ class EbusdEnergySplitSensor(_ActivityFollower, RestoreSensor):
         if activity != self._activity:
             self._accumulate()
             self._activity = activity
+
+
+class EbusdTextSensor(SensorEntity):
+    """A value shown as text (status, weekday, time)."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, config: DiscoveredTextSensor) -> None:
+        self.hass = hass
+        self._config = config
+        self._attr_translation_key = config.translation_key
+        self._attr_unique_id = f"ebusd_text_{config.key}"
+        self._attr_device_info = build_device_info(config)
+        self._attr_native_value: str | None = None
+        self._unsubscribe: Any = None
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except json.JSONDecodeError, ValueError:
+                payload = msg.payload
+            value = _get(payload, self._config.topic.field)
+            if value is not None:
+                self._attr_native_value = str(value)
+                self.async_write_ha_state()
+
+        self._unsubscribe = await mqtt.async_subscribe(
+            self.hass, self._config.topic.read_topic, _handle
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsubscribe:
+            self._unsubscribe()

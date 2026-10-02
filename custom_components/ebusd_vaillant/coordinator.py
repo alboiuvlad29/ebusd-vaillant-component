@@ -36,12 +36,13 @@ from .discovery import (
     DiscoveredClimate,
     DiscoveredCoolTempLimit,
     DiscoveredErrorSensor,
+    DiscoveredFlag,
     DiscoveredFlowTempRange,
     DiscoveredOperatingMode,
     DiscoveredPressureMonitor,
     DiscoveredSensor,
+    DiscoveredTextSensor,
     DiscoveredWaterHeater,
-    DiscoveredZoneFlag,
     TopicConfig,
     _analyze,
     _get,
@@ -267,7 +268,7 @@ class EbusdCoordinator:
                 )
             elif isinstance(entity, DiscoveredCoolTempLimit):
                 add([entity.cool_temp, entity.run_data_status], False)
-            elif isinstance(entity, DiscoveredErrorSensor | DiscoveredZoneFlag):
+            elif isinstance(entity, DiscoveredErrorSensor | DiscoveredFlag | DiscoveredTextSensor):
                 add([entity.topic], False)
             elif isinstance(entity, DiscoveredPressureMonitor):
                 continue  # its topics come from the pressure sensor or overheard Status07

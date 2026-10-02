@@ -89,6 +89,15 @@
       },
       "remote_room_humidity": {
         "name": "Comando remoto {number} umidità ambiente"
+      },
+      "hot_water_status": {
+        "name": "Stato acqua calda"
+      },
+      "legionella_day": {
+        "name": "Giorno protezione antilegionella"
+      },
+      "legionella_time": {
+        "name": "Ora protezione antilegionella"
       }
     },
     "binary_sensor": {
@@ -100,6 +109,14 @@
       },
       "time_slot_active": {
         "name": "Fascia oraria attiva"
+      },
+      "reheating_active": {
+        "name": "Riscaldamento attivo"
+      }
+    },
+    "button": {
+      "hot_water_boost_start": {
+        "name": "Avvia boost"
       }
     }
   },
@@ -137,7 +154,8 @@
           "cooling": "Raffrescamento",
           "temperature_write": "Modifiche di temperatura",
           "poll_priming": "Priorità di interrogazione",
-          "low_pressure_threshold": "Soglia pressione bassa (bar)"
+          "low_pressure_threshold": "Soglia pressione bassa (bar)",
+          "hot_water_boost_as_mode": "Mostra boost come modalità acqua calda (obsoleto)"
         },
         "data_description": {
           "away_mode_duration": "Numero di giorni che dura la modalità assenza quando attivata (predefinito: 7)",
@@ -147,7 +165,8 @@
           "cooling": "Se le zone offrono il raffrescamento (intervallo caldo/freddo e modalità freddo). Auto decide in base a ciò che il sistema riporta, ad es. Hc1CoolingEnabled o la resa di raffrescamento. Senza raffrescamento ogni zona ha una sola temperatura obiettivo.",
           "temperature_write": "Cosa scrive una modifica della temperatura obiettivo. Intelligente: il setpoint permanente in modalità Manuale, un veto rapido temporaneo in modalità Programmata. Sempre veto rapido: comportamento precedente alla 1.1.0.",
           "poll_priming": "Quali valori l'integrazione fa interrogare a ebusd e con che frequenza. Essenziali veloci: modalità, setpoint, temperature ambiente e ACS, boost e potenza veloci (?1), il resto lentamente (?5). Tutto veloce: tutti i valori con ?1. Spento: solo l'interrogazione propria di ebusd.",
-          "low_pressure_threshold": "Il sensore binario Pressione bassa si attiva sotto questa pressione dell'impianto (predefinito: 1,5)"
+          "low_pressure_threshold": "Il sensore binario Pressione bassa si attiva sotto questa pressione dell'impianto (predefinito: 1,5)",
+          "hot_water_boost_as_mode": "Mostra Boost come quarta modalità dello scaldacqua, come prima della 1.11.0. Il boost è ora sull'interruttore e sul pulsante Boost; questa opzione verrà rimossa in una versione successiva."
         }
       }
     }

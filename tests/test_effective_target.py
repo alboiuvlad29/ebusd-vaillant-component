@@ -9,8 +9,8 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.ebusd_vaillant.const import DOMAIN
 from custom_components.ebusd_vaillant.discovery import (
+    DiscoveredFlag,
     DiscoveredSensor,
-    DiscoveredZoneFlag,
     _analyze,
 )
 
@@ -37,7 +37,7 @@ def test_zone_extras_discovered_on_zone_device():
     assert desired.device_key == "ctlv3_zone1"
     assert desired.translation_key == "effective_target_temperature"
     assert sensors["ctlv3_zone1_setback_temp"].topic.read_topic == f"{C}/Z1SetbackTemp"
-    flag = next(e for e in entities if isinstance(e, DiscoveredZoneFlag))
+    flag = next(e for e in entities if isinstance(e, DiscoveredFlag))
     assert flag.topic.read_topic == f"{C}/Z1TimeSlotActive"
 
 
@@ -59,7 +59,7 @@ def test_no_extras_with_old_definitions():
         }
     }
     entities = _analyze(by_device, "ebusd")
-    assert not [e for e in entities if isinstance(e, DiscoveredZoneFlag)]
+    assert not [e for e in entities if isinstance(e, DiscoveredFlag)]
     assert not [e for e in entities if isinstance(e, DiscoveredSensor) and "zone1" in e.key]
 
 

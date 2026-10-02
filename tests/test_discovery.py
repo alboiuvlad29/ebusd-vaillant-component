@@ -6,12 +6,13 @@ from custom_components.ebusd_vaillant.discovery import (
     DiscoveredClimate,
     DiscoveredCoolTempLimit,
     DiscoveredErrorSensor,
+    DiscoveredFlag,
     DiscoveredFlowTempRange,
     DiscoveredOperatingMode,
     DiscoveredPressureMonitor,
     DiscoveredSensor,
+    DiscoveredTextSensor,
     DiscoveredWaterHeater,
-    DiscoveredZoneFlag,
     _analyze,
     _find_topic,
     _infer_field,
@@ -46,7 +47,8 @@ def test_entity_types_are_valid(data_file):
             | DiscoveredErrorSensor
             | DiscoveredPressureMonitor
             | DiscoveredOperatingMode
-            | DiscoveredZoneFlag,
+            | DiscoveredFlag
+            | DiscoveredTextSensor,
         )
 
 

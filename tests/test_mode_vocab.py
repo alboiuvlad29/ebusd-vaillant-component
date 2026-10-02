@@ -240,8 +240,8 @@ async def test_vocab_learned_from_mode_value(hass, setup_entry, mqtt_client_mock
 @pytest.mark.parametrize(
     ("msgs", "modes"),
     [
-        (OLD_AUTO, ["auto", "day", "off", "boost"]),
-        (NEW_AUTO, ["auto", "manual", "off", "boost"]),
+        (OLD_AUTO, ["auto", "day", "off"]),
+        (NEW_AUTO, ["auto", "manual", "off"]),
     ],
     ids=["old", "new"],
 )
@@ -287,27 +287,29 @@ async def test_water_heater_operation_list_learned_from_value(hass, setup_entry)
     await _fire_one(hass, "HwcOpMode", "manual")
     state = _water_heater(hass)
     assert state.state == "manual"
-    assert state.attributes["operation_list"] == ["auto", "manual", "off", "boost"]
+    assert state.attributes["operation_list"] == ["auto", "manual", "off"]
 
 
 @pytest.mark.parametrize(("msgs", "word"), [(OLD_AUTO, "day"), (NEW_AUTO, "manual")])
 async def test_water_heater_boost(hass, setup_entry, mqtt_client_mock, msgs, word):
-    """Boost writes HwcSFMode=load; leaving boost writes auto, then the regular mode."""
+    """Boost (switch) writes HwcSFMode=load; the water heater keeps showing the real mode."""
     await _fire(hass, msgs)
     entity_id = _water_heater(hass).entity_id
     published = await _call(
         hass,
         mqtt_client_mock,
-        "water_heater",
-        "set_operation_mode",
-        {"entity_id": entity_id, "operation_mode": "boost"},
+        "switch",
+        "turn_on",
+        {"entity_id": "switch.vaillant_hot_water_boost"},
     )
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode/set") == "load"
     assert f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode/set" not in published
 
     await _fire_one(hass, "HwcSFMode", "load")
-    assert _water_heater(hass).state == "boost"
+    assert _water_heater(hass).state == "auto"
+    assert _water_heater(hass).attributes["boost_active"] is True
 
+    # changing the mode no longer cancels a running boost
     published = await _call(
         hass,
         mqtt_client_mock,
@@ -315,5 +317,5 @@ async def test_water_heater_boost(hass, setup_entry, mqtt_client_mock, msgs, wor
         "set_operation_mode",
         {"entity_id": entity_id, "operation_mode": word},
     )
-    assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode/set") == "auto"
+    assert f"{MQTT_PREFIX}/{DEVICE}/HwcSFMode/set" not in published
     assert published.get(f"{MQTT_PREFIX}/{DEVICE}/HwcOpMode/set") == word

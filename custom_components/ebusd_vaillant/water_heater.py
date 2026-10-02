@@ -19,7 +19,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_AWAY_MODE_DURATION,
+    CONF_HWC_BOOST_AS_MODE,
     DEFAULT_AWAY_MODE_DURATION,
+    DEFAULT_HWC_BOOST_AS_MODE,
     DOMAIN,
     HWC_OPERATION_MODES,
     MODE_VOCAB_DAY,
@@ -43,6 +45,7 @@ async def async_setup_entry(
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
     seen: set[str] = set()
     away_duration = entry.options.get(CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION)
+    boost_as_mode = entry.options.get(CONF_HWC_BOOST_AS_MODE, DEFAULT_HWC_BOOST_AS_MODE)
     entities_by_key: dict[str, EbusdWaterHeaterEntity] = {}
 
     def _on_discover(entities: list) -> None:
@@ -53,7 +56,9 @@ async def async_setup_entry(
                     hass.async_create_task(entities_by_key[e.name].async_update_config(e))
                 elif e.name not in seen:
                     seen.add(e.name)
-                    entity = EbusdWaterHeaterEntity(hass, e, coordinator, away_duration)
+                    entity = EbusdWaterHeaterEntity(
+                        hass, e, coordinator, away_duration, boost_as_mode
+                    )
                     entities_by_key[e.name] = entity
                     new.append(entity)
         if new:
@@ -76,11 +81,15 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         config: DiscoveredWaterHeater,
         coordinator: EbusdCoordinator,
         away_duration: int = DEFAULT_AWAY_MODE_DURATION,
+        boost_as_mode: bool = DEFAULT_HWC_BOOST_AS_MODE,
     ) -> None:
         self.hass = hass
         self._config = config
         self._coordinator = coordinator
         self._away_duration = away_duration
+        # Legacy: boost as a fourth operation mode. Otherwise boost lives on the switch
+        # and button, and the operation is always the real hot water mode.
+        self._boost_as_mode = boost_as_mode
         self._attr_name = None  # primary entity of the Hot Water device; device name is the label
         self._attr_unique_id = f"ebusd_water_heater_{config.key}"
         self._attr_device_info = build_device_info(config)
@@ -147,7 +156,7 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
 
     @callback
     def _update_operation_list(self) -> None:
-        if self._config.sf_mode:
+        if self._config.sf_mode and self._boost_as_mode:
             self._attr_operation_list = [*self._operation_modes, "boost"]
         else:
             self._attr_operation_list = list(self._operation_modes)
@@ -201,7 +210,7 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             self._mode_vocab_observed = True
             self._set_mode_vocab(vocab)
         self._raw_operation = str(value)
-        self._attr_current_operation = "boost" if self._sf_mode == "load" else self._raw_operation
+        self._attr_current_operation = self._display_operation()
 
     @callback
     def _handle_target_temp(self, value: Any) -> None:
@@ -229,9 +238,12 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
     def _handle_sf_mode(self, value: Any) -> None:
         self._sf_mode = str(value)
         if self._raw_operation is not None:
-            self._attr_current_operation = (
-                "boost" if self._sf_mode == "load" else self._raw_operation
-            )
+            self._attr_current_operation = self._display_operation()
+
+    def _display_operation(self) -> str | None:
+        if self._boost_as_mode and self._sf_mode == "load":
+            return "boost"
+        return self._raw_operation
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -275,8 +287,10 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             if self._config.sf_mode and self._config.sf_mode.write_topic:
                 await self._publish(self._config.sf_mode.write_topic, "load")
             return
-        if self._config.sf_mode and self._config.sf_mode.write_topic and self._sf_mode == "load":
-            await self._publish(self._config.sf_mode.write_topic, "auto")
+        sf_mode = self._config.sf_mode
+        if self._boost_as_mode and sf_mode and sf_mode.write_topic and self._sf_mode == "load":
+            # legacy: leaving the "boost" mode cancels the charge
+            await self._publish(sf_mode.write_topic, "auto")
         if operation_mode in (MODE_VOCAB_DAY, MODE_VOCAB_MANUAL):
             # The service only offers the detected spelling; map defensively in case the
             # vocabulary changed after the caller read the operation list.

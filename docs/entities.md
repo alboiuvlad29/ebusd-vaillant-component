@@ -71,3 +71,12 @@ connected do not appear):
 | **Room temperature**, **Room humidity** | `RoomTemp`, `RoomHumidity` (the sensoCOMFORT's own sensor) | Controller |
 | **Remote {n} room temperature / humidity** | `VR92Addr{n}RoomTemp`, `VR92Addr{n}RoomHumidity` (VR 92 remote units, n = 1..7) | Controller |
 | **Room humidity** | `Z{n}RoomHumidity` | Zone |
+
+## Hot water extras
+
+| Entity | Source | Notes |
+|---|---|---|
+| **Start boost** (button) | `HwcSFMode` | One press starts a one-time cylinder charge (`load`). |
+| **Hot water status** | `HwcStatus` | As reported by the controller. |
+| **Reheating active** | `HwcReheatingActive` | On while the cylinder is being reheated. |
+| **Legionella protection day / time** | `HwcLegionellaDay`, `HwcLegionellaTime` | When the anti-legionella run is scheduled. |

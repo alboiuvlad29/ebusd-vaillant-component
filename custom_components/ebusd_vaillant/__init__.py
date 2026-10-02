@@ -25,7 +25,16 @@ from .coordinator import EbusdCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["binary_sensor", "climate", "datetime", "number", "sensor", "switch", "water_heater"]
+PLATFORMS = [
+    "binary_sensor",
+    "button",
+    "climate",
+    "datetime",
+    "number",
+    "sensor",
+    "switch",
+    "water_heater",
+]
 SERVICE_DUMP_MQTT = "dump_mqtt_values"
 SERVICE_RECORD_TOPIC = "record_topic_changes"
 

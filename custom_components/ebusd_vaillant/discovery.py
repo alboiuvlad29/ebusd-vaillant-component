@@ -173,8 +173,27 @@ class DiscoveredWaterHeater:
 
 
 @dataclass
-class DiscoveredZoneFlag:
-    """An on/off value of a zone, e.g. Z{n}TimeSlotActive."""
+class DiscoveredFlag:
+    """An on/off value, e.g. Z{n}TimeSlotActive or HwcReheatingActive."""
+
+    device_id: str
+    key: str
+    name: str
+    topic: TopicConfig
+    translation_key: str
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+@dataclass
+class DiscoveredTextSensor:
+    """A value shown as text, e.g. HwcStatus or HwcLegionellaDay."""
 
     device_id: str
     key: str
@@ -870,6 +889,57 @@ def _analyze(
                 )
             )
 
+        # --- Hot water extras: status, reheating, legionella protection ---
+        if hwc_op_key and hwc_target_key:
+            hwc_kwargs = dict(
+                device_key=f"{device_id}_hwc",
+                device_name=f"{display_name} Hot Water",
+                parent_key=prefix,
+                manufacturer=_manufacturer,
+                model=_model,
+                sw_version=_sw,
+                hw_version=_hw,
+            )
+            for msg_name, translation_key in (
+                ("HwcStatus", "hot_water_status"),
+                ("HwcLegionellaDay", "legionella_day"),
+                ("HwcLegionellaTime", "legionella_time"),
+            ):
+                if msg_name in msgs:
+                    entities.append(
+                        DiscoveredTextSensor(
+                            device_id=device_id,
+                            key=f"{device_id}_hwc_{translation_key}",
+                            name=translation_key.replace("_", " ").capitalize(),
+                            topic=_topic_config(
+                                prefix,
+                                device_id,
+                                msg_name,
+                                _infer_field(msgs[msg_name]),
+                                writable=False,
+                            ),
+                            translation_key=translation_key,
+                            **hwc_kwargs,
+                        )
+                    )
+            if "HwcReheatingActive" in msgs:
+                entities.append(
+                    DiscoveredFlag(
+                        device_id=device_id,
+                        key=f"{device_id}_hwc_reheating_active",
+                        name="Reheating active",
+                        topic=_topic_config(
+                            prefix,
+                            device_id,
+                            "HwcReheatingActive",
+                            _infer_field(msgs["HwcReheatingActive"]),
+                            writable=False,
+                        ),
+                        translation_key="reheating_active",
+                        **hwc_kwargs,
+                    )
+                )
+
         # Heating circuit flow temperature range:
         # Hc{n}MinFlowTempDesired + Hc{n}MaxFlowTempDesired
         for hc in range(1, max_zones + 1):
@@ -1245,7 +1315,7 @@ def _analyze(
             slot_key, slot_field = _find_nested(msgs, "zone_time_slot_active", n=zone)
             if slot_key:
                 entities.append(
-                    DiscoveredZoneFlag(
+                    DiscoveredFlag(
                         device_id=device_id,
                         key=f"{zone_entity.key}_time_slot_active",
                         name="Time slot active",

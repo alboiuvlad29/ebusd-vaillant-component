@@ -89,6 +89,15 @@
       },
       "remote_room_humidity": {
         "name": "Commande {number} humidité ambiante"
+      },
+      "hot_water_status": {
+        "name": "État de l'eau chaude"
+      },
+      "legionella_day": {
+        "name": "Jour de protection anti-légionelles"
+      },
+      "legionella_time": {
+        "name": "Heure de protection anti-légionelles"
       }
     },
     "binary_sensor": {
@@ -100,6 +109,14 @@
       },
       "time_slot_active": {
         "name": "Plage horaire active"
+      },
+      "reheating_active": {
+        "name": "Réchauffage actif"
+      }
+    },
+    "button": {
+      "hot_water_boost_start": {
+        "name": "Démarrer le boost"
       }
     }
   },
@@ -137,7 +154,8 @@
           "cooling": "Refroidissement",
           "temperature_write": "Changements de température",
           "poll_priming": "Priorités d'interrogation",
-          "low_pressure_threshold": "Seuil de pression basse (bar)"
+          "low_pressure_threshold": "Seuil de pression basse (bar)",
+          "hot_water_boost_as_mode": "Afficher le boost comme mode d'eau chaude (ancien)"
         },
         "data_description": {
           "away_mode_duration": "Nombre de jours dure le mode absence lorsqu'il est activé (par défaut : 7)",
@@ -147,7 +165,8 @@
           "cooling": "Indique si les zones proposent le refroidissement (plage chaud/froid et mode froid). Auto décide selon ce que le système signale, p. ex. Hc1CoolingEnabled ou le rendement de refroidissement. Sans refroidissement, chaque zone a une seule consigne.",
           "temperature_write": "Ce qu'écrit un changement de consigne. Intelligent : la consigne permanente en mode Manuel, un veto rapide temporaire en mode Programmé. Toujours veto rapide : comportement avant 1.1.0.",
           "poll_priming": "Les valeurs que l'intégration fait interroger par ebusd, et à quelle fréquence. Essentiel rapide : modes, consignes, températures ambiante et ECS, boost et puissance rapidement (?1), le reste lentement (?5). Tout rapide : toutes les valeurs à ?1. Arrêt : seulement l'interrogation propre d'ebusd.",
-          "low_pressure_threshold": "Le capteur binaire Pression basse s'active en dessous de cette pression (par défaut : 1,5)"
+          "low_pressure_threshold": "Le capteur binaire Pression basse s'active en dessous de cette pression (par défaut : 1,5)",
+          "hot_water_boost_as_mode": "Afficher Boost comme quatrième mode du chauffe-eau, comme avant 1.11.0. Le boost se trouve désormais sur l'interrupteur et le bouton Boost ; cette option sera supprimée dans une version ultérieure."
         }
       }
     }

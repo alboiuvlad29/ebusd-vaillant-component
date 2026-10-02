@@ -162,9 +162,17 @@ Current temperature is read from the first available message in the order:
 
 ### Boost operation
 
-When `HwcSFMode` is present, an additional `boost` operation mode is added to
-the water heater's operation list, and a dedicated **Hot Water Boost** switch
-entity is created.
+Boost (`HwcSFMode` = `load`) is a one-time cylinder charge that ends by itself; the hot
+water mode underneath (Time controlled / Manual / Off) is unchanged. When `HwcSFMode` is
+present, a **Boost** switch (on = charging, off = cancel; turns off when the charge is
+done) and a **Start boost** button are created, and the water heater gets a
+`boost_active` attribute. The water heater's operation list shows only the real modes.
+
+There is no end time for a charge on the bus: it ends when the cylinder reaches its
+target, at which point the switch turns off.
+
+The option `hot_water_boost_as_mode` restores the behaviour before 1.11.0, where an
+additional `boost` operation mode is added to the water heater's operation list:
 
 | Control | Mechanism |
 |---|---|
