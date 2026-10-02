@@ -231,3 +231,47 @@ def test_device_info_uses_via_device_id_when_supported(monkeypatch):
 
     monkeypatch.setattr(device_module, "_SUPPORTS_VIA_DEVICE_ID", False)
     assert device_module.build_device_info(z1)["via_device"] == (DOMAIN, "ebusd")
+
+
+# --- 1.13.3: Heating boost switch created before Z{n}SFMode arrives -------------------
+
+
+async def test_boost_switch_works_when_sf_mode_arrives_after_discovery(
+    hass, mqtt_mock, mqtt_client_mock
+):
+    """Startup order on the live system: OpMode + ManualTemp first, SFMode later."""
+    first = {k: v for k, v in NEW.items() if not k.endswith("Z1SFMode")}
+    await _setup(hass, first)
+    assert hass.states.get(BOOST) is not None
+
+    await _send(hass, "Z1SFMode", "veto")
+    assert hass.states.get(BOOST).state == "on"
+    out = await _call(hass, mqtt_client_mock, "switch", "turn_off", {"entity_id": BOOST})
+    assert out[f"{C}/Z1SFMode/set"] == "auto"
+    assert f"{C}/Z1QuickVetoDuration/set" not in out
+    await _send(hass, "Z1SFMode", "auto")
+    assert hass.states.get(BOOST).state == "off"
+
+
+async def test_boost_switch_picks_up_sf_mode_from_later_discovery(
+    hass, mqtt_mock, mqtt_client_mock
+):
+    """Created while the vocabulary is still ambiguous (no SFMode topic), then updated."""
+    # a stale retained Z1DayTemp arrives first, so the vocabulary is still undecided
+    # (day) when OpMode=auto creates the zone and its switch
+    ambiguous = {f"{C}/Z1DayTemp": 19.0}
+    ambiguous.update({k: v for k, v in NEW.items() if not k.endswith("Z1SFMode")})
+    ambiguous[f"{C}/Z1OpMode"] = "auto"
+    await _setup(hass, ambiguous)
+    await _send(hass, "Z1OpMode", "manual")  # now clearly the newer definitions
+    await _send(hass, "Z1SFMode", "veto")
+    assert hass.states.get(BOOST).state == "on"
+    out = await _call(hass, mqtt_client_mock, "switch", "turn_off", {"entity_id": BOOST})
+    assert out[f"{C}/Z1SFMode/set"] == "auto"
+    assert f"{C}/Z1QuickVetoDuration/set" not in out
+
+
+def test_sf_mode_topic_exists_before_first_value():
+    first = {k: v for k, v in NEW.items() if not k.endswith("Z1SFMode")}
+    z1 = next(e for e in _analyze(_by_device(first), "ebusd") if isinstance(e, DiscoveredClimate))
+    assert z1.sf_mode.write_topic == f"{C}/Z1SFMode/set"

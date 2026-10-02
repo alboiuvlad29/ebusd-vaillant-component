@@ -39,80 +39,107 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities_by_key: dict[
-        str,
-        EbusdAwayModeSwitch | EbusdHwcAwayModeSwitch | EbusdHwcBoostSwitch | EbusdQuickVetoSwitch,
-    ] = {}
+    entities_by_key: dict[str, _FollowsDiscovery] = {}
     away_duration = entry.options.get(CONF_AWAY_MODE_DURATION, DEFAULT_AWAY_MODE_DURATION)
     quick_veto_duration = entry.options.get(CONF_QUICK_VETO_DURATION, DEFAULT_QUICK_VETO_DURATION)
     quick_veto_temp = entry.options.get(CONF_QUICK_VETO_TEMP, DEFAULT_QUICK_VETO_TEMP)
 
     def _on_discover(entities: list) -> None:
         new = []
+
+        def _add_or_update(key: str, factory: Any, config: Any) -> None:
+            if key in entities_by_key:
+                hass.async_create_task(entities_by_key[key].async_update_config(config))
+                return
+            entity = factory()
+            entities_by_key[key] = entity
+            new.append(entity)
+
         for e in entities:
             if isinstance(e, DiscoveredClimate):
-                key = f"{e.key}_away_mode"
-                if key not in entities_by_key:
-                    entity = EbusdAwayModeSwitch(hass, e, away_duration)
-                    entities_by_key[key] = entity
-                    new.append(entity)
+                _add_or_update(
+                    f"{e.key}_away_mode",
+                    lambda e=e: EbusdAwayModeSwitch(hass, e, coordinator, away_duration),
+                    e,
+                )
                 if e.has_quick_veto:
-                    veto_key = f"{e.key}_quick_veto"
-                    if veto_key not in entities_by_key:
-                        entity = EbusdQuickVetoSwitch(hass, e, quick_veto_temp, quick_veto_duration)
-                        entities_by_key[veto_key] = entity
-                        new.append(entity)
+                    _add_or_update(
+                        f"{e.key}_quick_veto",
+                        lambda e=e: EbusdQuickVetoSwitch(
+                            hass, e, coordinator, quick_veto_temp, quick_veto_duration
+                        ),
+                        e,
+                    )
             elif isinstance(e, DiscoveredWaterHeater):
                 if e.holiday_start and e.holiday_end:
-                    key = f"{e.key}_away_mode"
-                    if key not in entities_by_key:
-                        entity = EbusdHwcAwayModeSwitch(hass, e, away_duration)
-                        entities_by_key[key] = entity
-                        new.append(entity)
+                    _add_or_update(
+                        f"{e.key}_away_mode",
+                        lambda e=e: EbusdHwcAwayModeSwitch(hass, e, coordinator, away_duration),
+                        e,
+                    )
                 if e.sf_mode:
-                    key2 = f"{e.key}_boost"
-                    if key2 not in entities_by_key:
-                        entity = EbusdHwcBoostSwitch(hass, e)
-                        entities_by_key[key2] = entity
-                        new.append(entity)
+                    _add_or_update(
+                        f"{e.key}_boost", lambda e=e: EbusdHwcBoostSwitch(hass, e, coordinator), e
+                    )
         if new:
             async_add_entities(new)
 
     coordinator.add_listener(_on_discover)
 
 
-class EbusdAwayModeSwitch(LegacyObjectIdMixin, SwitchEntity):
-    """Switch to toggle away mode (holiday) for a heating zone, setting start/end dates on ebusd."""
+class _FollowsDiscovery(LegacyObjectIdMixin, SwitchEntity):
+    """Base: subscribe per role, seed from the coordinator cache, follow later discovery.
+
+    Discovery can bring topics after the switch was created (e.g. Z{n}SFMode arriving
+    after the zone's OpMode on startup); async_update_config rebinds to them.
+    """
 
     _attr_has_entity_name = True
     _attr_should_poll = False
-    _attr_icon = "mdi:airplane-takeoff"
-    _attr_translation_key = "away"
-    _legacy_object_id = "Away Mode"
 
-    def __init__(self, hass: HomeAssistant, config: DiscoveredClimate, away_duration: int) -> None:
+    def __init__(self, hass: HomeAssistant, config: Any, coordinator: EbusdCoordinator) -> None:
         self.hass = hass
         self._config = config
-        self._away_duration = away_duration
-        self._attr_unique_id = f"ebusd_away_mode_{config.key}"
+        self._coordinator = coordinator
         self._attr_device_info = build_device_info(config)
-        self._holiday_start: str | None = None
-        self._holiday_end: str | None = None
-        self._unsubscribe: list[Any] = []
+        # role -> (read topic, unsubscribe callback)
+        self._subscriptions: dict[str, tuple[str, Any]] = {}
+
+    def _bindings(self) -> dict[str, tuple[TopicConfig | None, Any]]:
+        raise NotImplementedError
 
     async def async_added_to_hass(self) -> None:
-        if self._config.holiday_start:
-            await self._subscribe(self._config.holiday_start, self._handle_holiday_start)
-        if self._config.holiday_end:
-            await self._subscribe(self._config.holiday_end, self._handle_holiday_end)
+        await self._rebind()
 
-    async def async_will_remove_from_hass(self) -> None:
-        for unsub in self._unsubscribe:
-            unsub()
+    async def async_update_config(self, config: Any) -> None:
+        self._config = config
+        if self.platform is not None:
+            await self._rebind()
+            self.async_write_ha_state()
 
-    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
+    async def _rebind(self) -> None:
+        for role, (topic_cfg, handler) in self._bindings().items():
+            topic = topic_cfg.read_topic if topic_cfg else None
+            current = self._subscriptions.get(role)
+            if current and current[0] == topic:
+                continue
+            if current:
+                current[1]()
+                del self._subscriptions[role]
+            if topic_cfg is None:
+                continue
+            unsub = await mqtt.async_subscribe(
+                self.hass, topic_cfg.read_topic, self._wrap(topic_cfg, handler)
+            )
+            self._subscriptions[role] = (topic_cfg.read_topic, unsub)
+            value = self._coordinator.get_current_value(topic_cfg)
+            if value is not None:
+                handler(value)
+        self._after_update()
+
+    def _wrap(self, topic_cfg: TopicConfig, handler: Any) -> Any:
         @callback
-        def _wrap(msg: mqtt.ReceiveMessage) -> None:
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
             try:
                 payload = json.loads(msg.payload)
             except json.JSONDecodeError, ValueError:
@@ -120,92 +147,45 @@ class EbusdAwayModeSwitch(LegacyObjectIdMixin, SwitchEntity):
             value = _get(payload, topic_cfg.field)
             if value is not None:
                 handler(value)
+                self._after_update()
                 self.async_write_ha_state()
 
-        unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
-        self._unsubscribe.append(unsub)
+        return _handle
 
     @callback
-    def _handle_holiday_start(self, value: Any) -> None:
-        self._holiday_start = str(value)
+    def _after_update(self) -> None:
+        """Hook run after values changed."""
 
-    @callback
-    def _handle_holiday_end(self, value: Any) -> None:
-        self._holiday_end = str(value)
-
-    @property
-    def is_on(self) -> bool:
-        if not self._holiday_start or not self._holiday_end:
-            return False
-        try:
-            now = datetime.now().date()
-            start = datetime.strptime(self._holiday_start, _DATE_FMT).date()
-            end = datetime.strptime(self._holiday_end, _DATE_FMT).date()
-            return start <= now <= end
-        except ValueError:
-            return False
+    async def async_will_remove_from_hass(self) -> None:
+        for _topic, unsub in self._subscriptions.values():
+            unsub()
+        self._subscriptions.clear()
 
     async def _publish(self, topic: str, payload: str) -> None:
         _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)
         await mqtt.async_publish(self.hass, topic, payload)
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        today = datetime.now().date()
-        start_str = today.strftime(_DATE_FMT)
-        end_str = (today + timedelta(days=self._away_duration)).strftime(_DATE_FMT)
-        await self._publish(self._config.holiday_start.write_topic, start_str)
-        await self._publish(self._config.holiday_end.write_topic, end_str)
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._publish(self._config.holiday_start.write_topic, _HOLIDAY_RESET)
-        await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
+class _AwaySwitch(_FollowsDiscovery):
+    """Away mode (holiday): start and end dates on ebusd."""
 
-
-class EbusdHwcAwayModeSwitch(LegacyObjectIdMixin, SwitchEntity):
-    """Switch to toggle away mode (holiday) for a hot water circuit, setting dates on ebusd."""
-
-    _attr_has_entity_name = True
-    _attr_should_poll = False
     _attr_icon = "mdi:airplane-takeoff"
-    _attr_translation_key = "hot_water_away"
     _legacy_object_id = "Away Mode"
 
     def __init__(
-        self, hass: HomeAssistant, config: DiscoveredWaterHeater, away_duration: int
+        self, hass: HomeAssistant, config: Any, coordinator: EbusdCoordinator, away_duration: int
     ) -> None:
-        self.hass = hass
-        self._config = config
+        super().__init__(hass, config, coordinator)
         self._away_duration = away_duration
         self._attr_unique_id = f"ebusd_away_mode_{config.key}"
-        self._attr_device_info = build_device_info(config)
         self._holiday_start: str | None = None
         self._holiday_end: str | None = None
-        self._unsubscribe: list[Any] = []
 
-    async def async_added_to_hass(self) -> None:
-        if self._config.holiday_start:
-            await self._subscribe(self._config.holiday_start, self._handle_holiday_start)
-        if self._config.holiday_end:
-            await self._subscribe(self._config.holiday_end, self._handle_holiday_end)
-
-    async def async_will_remove_from_hass(self) -> None:
-        for unsub in self._unsubscribe:
-            unsub()
-
-    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
-        @callback
-        def _wrap(msg: mqtt.ReceiveMessage) -> None:
-            try:
-                payload = json.loads(msg.payload)
-            except json.JSONDecodeError, ValueError:
-                payload = msg.payload
-            value = _get(payload, topic_cfg.field)
-            if value is not None:
-                handler(value)
-                self.async_write_ha_state()
-
-        unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
-        self._unsubscribe.append(unsub)
+    def _bindings(self) -> dict[str, tuple[TopicConfig | None, Any]]:
+        return {
+            "holiday_start": (self._config.holiday_start, self._handle_holiday_start),
+            "holiday_end": (self._config.holiday_end, self._handle_holiday_end),
+        }
 
     @callback
     def _handle_holiday_start(self, value: Any) -> None:
@@ -226,10 +206,6 @@ class EbusdHwcAwayModeSwitch(LegacyObjectIdMixin, SwitchEntity):
             return start <= now <= end
         except ValueError:
             return False
-
-    async def _publish(self, topic: str, payload: str) -> None:
-        _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)
-        await mqtt.async_publish(self.hass, topic, payload)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         today = datetime.now().date()
@@ -247,45 +223,34 @@ class EbusdHwcAwayModeSwitch(LegacyObjectIdMixin, SwitchEntity):
             await self._publish(self._config.holiday_end.write_topic, _HOLIDAY_RESET)
 
 
-class EbusdHwcBoostSwitch(LegacyObjectIdMixin, SwitchEntity):
+class EbusdAwayModeSwitch(_AwaySwitch):
+    """Switch to toggle away mode (holiday) for a heating zone, setting start/end dates on ebusd."""
+
+    _attr_translation_key = "away"
+
+
+class EbusdHwcAwayModeSwitch(_AwaySwitch):
+    """Switch to toggle away mode (holiday) for a hot water circuit, setting dates on ebusd."""
+
+    _attr_translation_key = "hot_water_away"
+
+
+class EbusdHwcBoostSwitch(_FollowsDiscovery):
     """Switch for a one-time hot water charge (HwcSFMode=load); turns off when it ends."""
 
-    _attr_has_entity_name = True
-    _attr_should_poll = False
     _attr_icon = "mdi:water-boiler-alert"
     _attr_translation_key = "hot_water_boost"
     _legacy_object_id = "Boost"
 
-    def __init__(self, hass: HomeAssistant, config: DiscoveredWaterHeater) -> None:
-        self.hass = hass
-        self._config = config
+    def __init__(
+        self, hass: HomeAssistant, config: DiscoveredWaterHeater, coordinator: EbusdCoordinator
+    ) -> None:
+        super().__init__(hass, config, coordinator)
         self._attr_unique_id = f"ebusd_boost_{config.key}"
-        self._attr_device_info = build_device_info(config)
         self._sf_mode: str | None = None
-        self._unsubscribe: list[Any] = []
 
-    async def async_added_to_hass(self) -> None:
-        if self._config.sf_mode:
-            await self._subscribe(self._config.sf_mode, self._handle_sf_mode)
-
-    async def async_will_remove_from_hass(self) -> None:
-        for unsub in self._unsubscribe:
-            unsub()
-
-    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
-        @callback
-        def _wrap(msg: mqtt.ReceiveMessage) -> None:
-            try:
-                payload = json.loads(msg.payload)
-            except (json.JSONDecodeError, ValueError):  # fmt: skip
-                payload = msg.payload
-            value = _get(payload, topic_cfg.field)
-            if value is not None:
-                handler(value)
-                self.async_write_ha_state()
-
-        unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
-        self._unsubscribe.append(unsub)
+    def _bindings(self) -> dict[str, tuple[TopicConfig | None, Any]]:
+        return {"sf_mode": (self._config.sf_mode, self._handle_sf_mode)}
 
     @callback
     def _handle_sf_mode(self, value: Any) -> None:
@@ -294,10 +259,6 @@ class EbusdHwcBoostSwitch(LegacyObjectIdMixin, SwitchEntity):
     @property
     def is_on(self) -> bool:
         return self._sf_mode == "load"
-
-    async def _publish(self, topic: str, payload: str) -> None:
-        _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)
-        await mqtt.async_publish(self.hass, topic, payload)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if self._config.sf_mode and self._config.sf_mode.write_topic:
@@ -313,14 +274,12 @@ _QUICK_VETO_CANCEL_DATE = "01.01.2015"
 _QUICK_VETO_CANCEL_TIME = "00:00:00"
 
 
-class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
+class EbusdQuickVetoSwitch(_FollowsDiscovery):
     """Heating boost for a zone: Vaillant's quick veto (temperature X for N hours).
 
     Turns itself off when the boost ends, so HomeKit and dashboards show the right state.
     """
 
-    _attr_has_entity_name = True
-    _attr_should_poll = False
     _attr_icon = "mdi:thermometer-chevron-up"
     _attr_translation_key = "heating_boost"
     _legacy_object_id = "Quick Veto"
@@ -329,55 +288,37 @@ class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
         self,
         hass: HomeAssistant,
         config: DiscoveredClimate,
+        coordinator: EbusdCoordinator,
         quick_veto_temp: float,
         quick_veto_duration: int,
     ) -> None:
-        self.hass = hass
-        self._config = config
+        super().__init__(hass, config, coordinator)
         self._quick_veto_temp = quick_veto_temp
         self._quick_veto_duration = quick_veto_duration
         self._attr_unique_id = f"ebusd_quick_veto_{config.key}"
-        self._attr_device_info = build_device_info(config)
         self._quick_veto_end_date: str | None = None
         self._quick_veto_end_time: str | None = None
         self._boost_temperature: float | None = None
         self._boost_duration: float | None = None
         self._sf_mode: str | None = None
-        self._unsubscribe: list[Any] = []
         self._cancel_end_timer: Any = None
 
-    async def async_added_to_hass(self) -> None:
-        if self._config.quick_veto_end_date:
-            await self._subscribe(self._config.quick_veto_end_date, self._handle_end_date)
-        if self._config.quick_veto_end_time:
-            await self._subscribe(self._config.quick_veto_end_time, self._handle_end_time)
-        if self._config.quick_veto_temp:
-            await self._subscribe(self._config.quick_veto_temp, self._handle_temperature)
-        if self._config.quick_veto_duration:
-            await self._subscribe(self._config.quick_veto_duration, self._handle_duration)
-        if self._config.sf_mode:
-            await self._subscribe(self._config.sf_mode, self._handle_sf_mode)
+    def _bindings(self) -> dict[str, tuple[TopicConfig | None, Any]]:
+        return {
+            "end_date": (self._config.quick_veto_end_date, self._handle_end_date),
+            "end_time": (self._config.quick_veto_end_time, self._handle_end_time),
+            "temperature": (self._config.quick_veto_temp, self._handle_temperature),
+            "duration": (self._config.quick_veto_duration, self._handle_duration),
+            "sf_mode": (self._config.sf_mode, self._handle_sf_mode),
+        }
 
     async def async_will_remove_from_hass(self) -> None:
-        for unsub in self._unsubscribe:
-            unsub()
+        await super().async_will_remove_from_hass()
         self._cancel_timer()
 
-    async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
-        @callback
-        def _wrap(msg: mqtt.ReceiveMessage) -> None:
-            try:
-                payload = json.loads(msg.payload)
-            except json.JSONDecodeError, ValueError:
-                payload = msg.payload
-            value = _get(payload, topic_cfg.field)
-            if value is not None:
-                handler(value)
-                self._schedule_end()
-                self.async_write_ha_state()
-
-        unsub = await mqtt.async_subscribe(self.hass, topic_cfg.read_topic, _wrap)
-        self._unsubscribe.append(unsub)
+    @callback
+    def _after_update(self) -> None:
+        self._schedule_end()
 
     @callback
     def _handle_end_date(self, value: Any) -> None:
@@ -456,10 +397,6 @@ class EbusdQuickVetoSwitch(LegacyObjectIdMixin, SwitchEntity):
             "boost_duration_hours": self._boost_duration,
             "boost_ends_at": end.isoformat() if active else None,
         }
-
-    async def _publish(self, topic: str, payload: str) -> None:
-        _LOGGER.debug("MQTT publish: %s -> %s", topic, payload)
-        await mqtt.async_publish(self.hass, topic, payload)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         qv = self._config.quick_veto_temp

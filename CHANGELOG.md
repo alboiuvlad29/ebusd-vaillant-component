@@ -2,6 +2,15 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.13.3
+
+- Fix: the **Heating boost** switch could not cancel a boost on the newer definitions
+  after a restart or reload. It was created before `Z{n}SFMode` had arrived and kept that
+  first configuration, so turning it off wrote duration 0 (ignored by the controller) and
+  it did not follow `Z{n}SFMode`. The `Z{n}SFMode` topic is now always known on the newer
+  definitions, and all switches (Heating boost, Away, hot water Boost and Away) follow
+  later discovery updates and start from the values already received.
+
 ## 1.13.2
 
 Fixes from the first live install on the newer controller definitions:
