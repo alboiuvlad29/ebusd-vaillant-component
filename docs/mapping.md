@@ -75,6 +75,7 @@ Climate entities are created for each heating zone that has both a
 | `Z{n}OpMode` | `value.value` | read/write | HVAC mode |
 | `Z{n}RoomTemp` | `value.value` | read | Current temperature |
 | `Z{n}DayTemp` / `Z{n}ManualTemp` | `value.value` | read/write | Target temperature (or low in range mode) |
+| `Z{n}TempDesired` | `value.value` | read | Effective target in time-controlled mode |
 | `Z{n}NightTemp` | `value.value` | read/write | Target temperature low |
 | `Z{n}CoolingTemp` | `value.value` | read/write | Target temperature high |
 | `Z{n}HolidayStartPeriod` | `value.value` | read/write | Preset "away" start |
@@ -91,9 +92,24 @@ adapts:
 
 | Available messages | HA feature | Behavior |
 |---|---|---|
-| `Z{n}DayTemp` only | Target temperature | Set temp :material-arrow-right: writes `Z{n}QuickVetoTemp` + 3h duration (boost) |
-| `Z{n}DayTemp` + `Z{n}NightTemp` | Target temperature range | High = `DayTemp`, low = `NightTemp`; low change triggers boost |
-| `Z{n}DayTemp` + `Z{n}CoolingTemp` | Target temperature range | High = `CoolingTemp`, low = `DayTemp`; low change triggers boost |
+| `Z{n}DayTemp`/`Z{n}ManualTemp` only, or cooling disabled | Target temperature | See "Temperature changes" below |
+| `Z{n}DayTemp` + `Z{n}NightTemp`, cooling enabled | Target temperature range | High = `DayTemp`, low = `NightTemp`; low change triggers boost |
+| `Z{n}DayTemp` + `Z{n}CoolingTemp`, cooling enabled | Target temperature range | High = `CoolingTemp`, low = `DayTemp`; low change triggers boost |
+
+Ranges and the `cool` HVAC mode are only offered when the zone has cooling (option
+`cooling`, see [Options](options.md)).
+
+### Temperature changes
+
+With the default option `temperature_write: smart`:
+
+| Zone mode | Displayed target | Setting the temperature |
+|---|---|---|
+| Manual (`manual`/`day`) | `Z{n}ManualTemp`/`Z{n}DayTemp` | Writes the manual setpoint permanently |
+| Time controlled (`auto`) | `Z{n}TempDesired` (the target the controller is aiming for), else the manual setpoint | Starts a quick veto (`Z{n}QuickVetoTemp` + duration); the new target is shown right away |
+| Off | Manual setpoint | Starts a quick veto |
+
+With `temperature_write: quick_veto`, every change starts a quick veto (behaviour before 1.1.0).
 
 ## Water heater
 

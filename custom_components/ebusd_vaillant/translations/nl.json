@@ -42,15 +42,34 @@
           "quick_veto_duration": "Standaard snel veto-duur (uren)",
           "max_zones": "Aantal zones",
           "prime_poll_values": "Apparaten ontdekken bij opstarten",
-          "zones_with_temp_only": "Alleen zones met een temperatuurmeting"
+          "zones_with_temp_only": "Alleen zones met een temperatuurmeting",
+          "cooling": "Koeling",
+          "temperature_write": "Temperatuurwijzigingen"
         },
         "data_description": {
           "away_mode_duration": "Aantal dagen dat de afwezigheidsmodus duurt wanneer geactiveerd (standaard: 7)",
           "quick_veto_duration": "Aantal uren dat het snelle veto duurt wanneer geactiveerd (standaard: 3)",
           "max_zones": "Beperkt hoeveel zone-entiteiten worden aangemaakt (standaard: 4)",
           "prime_poll_values": "Probeert typische MQTT-onderwerpnamen op te vragen om waarden direct bij het opstarten te tonen. Indien uitgeschakeld, worden entiteiten beschikbaar zodra MQTT-waarden worden gepubliceerd (standaard: aan)",
-          "zones_with_temp_only": "Wanneer ingeschakeld (standaard), worden alleen klimaatentiteiten aangemaakt voor zones die een huidige temperatuur melden. Wanneer uitgeschakeld, worden entiteiten aangemaakt voor alle zones tot het geconfigureerde maximum."
+          "zones_with_temp_only": "Wanneer ingeschakeld (standaard), worden alleen klimaatentiteiten aangemaakt voor zones die een huidige temperatuur melden. Wanneer uitgeschakeld, worden entiteiten aangemaakt voor alle zones tot het geconfigureerde maximum.",
+          "cooling": "Of zones koeling aanbieden (verwarm/koel-doelbereik en koelmodus). Auto beslist op basis van wat het systeem meldt, bijv. Hc1CoolingEnabled of de koelopbrengst. Zonder koeling heeft elke zone één doeltemperatuur.",
+          "temperature_write": "Wat het wijzigen van de doeltemperatuur schrijft. Slim: in Handmatig de vaste setpoint, in Tijdgestuurd een tijdelijk snel veto. Altijd snel veto: gedrag vóór 1.1.0."
         }
+      }
+    }
+  },
+  "selector": {
+    "cooling": {
+      "options": {
+        "auto": "Auto (detecteren)",
+        "enabled": "Ingeschakeld",
+        "disabled": "Uitgeschakeld"
+      }
+    },
+    "temperature_write": {
+      "options": {
+        "smart": "Slim (Handmatig: setpoint, Tijdgestuurd: snel veto)",
+        "quick_veto": "Altijd snel veto"
       }
     }
   }

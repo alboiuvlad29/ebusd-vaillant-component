@@ -27,6 +27,23 @@ DEFAULT_ZONES_WITH_TEMP_ONLY = True
 CONF_PRIME_VALUES = "prime_poll_values"
 DEFAULT_PRIME_VALUES = True
 
+# Whether zones offer cooling (heat/cool target range and the cool HVAC mode).
+# "auto" decides from what the system reports (Hc{n}CoolingEnabled, YieldCooling, ...).
+CONF_COOLING = "cooling"
+COOLING_AUTO = "auto"
+COOLING_ENABLED = "enabled"
+COOLING_DISABLED = "disabled"
+COOLING_OPTIONS = [COOLING_AUTO, COOLING_ENABLED, COOLING_DISABLED]
+DEFAULT_COOLING = COOLING_AUTO
+
+# What a zone temperature change writes. "smart": the manual setpoint in manual mode,
+# a quick veto otherwise. "quick_veto": always a quick veto (behaviour before 1.1.0).
+CONF_TEMPERATURE_WRITE = "temperature_write"
+TEMPERATURE_WRITE_SMART = "smart"
+TEMPERATURE_WRITE_QUICK_VETO = "quick_veto"
+TEMPERATURE_WRITE_OPTIONS = [TEMPERATURE_WRITE_SMART, TEMPERATURE_WRITE_QUICK_VETO]
+DEFAULT_TEMPERATURE_WRITE = TEMPERATURE_WRITE_SMART
+
 # Operating mode vocabulary of the controller definitions (Z{n}OpMode, HwcOpMode).
 # Older ebusd-configuration files use 0=off;1=auto;2=day;3=night, newer ones
 # (TypeSpec-based 15.ctlv2/ctlv3) use 0=off;1=auto;2=manual.
