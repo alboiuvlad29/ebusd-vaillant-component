@@ -35,6 +35,17 @@ For water heaters, the raw ebusd operation mode values (`auto`, `day`, `off`)
 are passed through directly.  When `HwcSFMode` is available, an additional
 `boost` mode is added to the operation list.
 
+### Displayed mode names
+
+Modes are shown with the names the sensoCOMFORT uses. The underlying values are unchanged:
+
+| ebusd value | Climate (HVAC mode) | Water heater | Shown as |
+|---|---|---|---|
+| `auto` | `auto` | `auto` | Time controlled |
+| `manual` / `day` | `heat` | `manual` / `day` | Manual |
+| `off` | `off` | `off` | Off |
+| `HwcSFMode` = `load` | | `boost` | Boost |
+
 ### Mode vocabulary
 
 Older ebusd-configuration controller files define `Z{n}OpMode` and `HwcOpMode`

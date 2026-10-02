@@ -127,6 +127,8 @@ class EbusdClimateEntity(ClimateEntity):
     _attr_preset_modes = [PRESET_NONE, PRESET_BOOST, PRESET_AWAY]
     _attr_has_entity_name = True
     _attr_should_poll = False
+    # Mode names as on the sensoCOMFORT: Time controlled / Manual / Off
+    _attr_translation_key = "ebusd_zone"
 
     def __init__(
         self,

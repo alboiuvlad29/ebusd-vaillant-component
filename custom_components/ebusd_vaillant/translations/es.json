@@ -3,10 +3,21 @@
     "water_heater": {
       "ebusd_water_heater": {
         "state": {
-          "auto": "Automático",
+          "auto": "Programado",
           "day": "Manual",
           "manual": "Manual",
-          "boost": "Boost"
+          "boost": "Boost",
+          "off": "Apagado"
+        }
+      }
+    },
+    "climate": {
+      "ebusd_zone": {
+        "state": {
+          "auto": "Programado",
+          "heat": "Manual",
+          "off": "Apagado",
+          "cool": "Refrigerar"
         }
       }
     }

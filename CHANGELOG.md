@@ -2,6 +2,12 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.2.0
+
+- Modes are shown with the sensoCOMFORT names: **Time controlled** (`auto`), **Manual**
+  (`heat` for zones, `manual`/`day` for hot water) and **Off**, in all languages. Only the
+  displayed names change; states, attributes, entity IDs and automations are unaffected.
+
 ## 1.1.0
 
 - Zones without cooling now show one target temperature instead of a heat/cool range,
