@@ -2,6 +2,18 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.13.1
+
+- Fix: the **Low pressure** binary sensor now picks up `Status07` (fast pressure and the
+  pressure-loss flag) when it appears after the polled pressure message; before, the
+  pressure-loss flag could be ignored for the whole session.
+- Fix: the integration no longer treats its own `.../set` writes as values from the
+  controller. A write that ebusd rejected could otherwise be skipped as "unchanged" when
+  retried.
+- Fix: write protection no longer skips a setpoint that equals the cached value while
+  ebusd has not yet confirmed a different, just-written value (e.g. 50, 51, 50 in quick
+  succession now ends at 50).
+
 ## 1.13.0
 
 - Diagnostics download with versions, options, cached ebusd messages per circuit and the

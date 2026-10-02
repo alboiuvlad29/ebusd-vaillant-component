@@ -141,3 +141,38 @@ async def test_pending_write_flushed_on_unload(hass, mqtt_mock, mqtt_client_mock
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert _writes(mqtt_client_mock, HWC_SET) == ["51.0", "54.0"]
+
+
+async def test_back_to_cached_value_before_echo_is_written(
+    hass, mqtt_mock, mqtt_client_mock, freezer
+):
+    """50 -> 51 -> 50 before ebusd echoes 51: the controller must end at 50, not 51."""
+    await _setup(hass)
+    mqtt_client_mock.publish.reset_mock()
+    await _set_hwc(hass, 51)  # sent at once; the cache still says 50
+    await _set_hwc(hass, 50)
+    await _advance(hass, freezer, 15)
+    assert _writes(mqtt_client_mock, HWC_SET) == ["51.0", "50.0"]
+
+
+async def test_cache_trusted_again_after_echo_window(hass, mqtt_mock, mqtt_client_mock, freezer):
+    await _setup(hass)
+    mqtt_client_mock.publish.reset_mock()
+    await _set_hwc(hass, 51)
+    async_fire_mqtt_message(hass, f"{C}/HwcTempDesired", json.dumps({"value": {"value": 50}}))
+    await hass.async_block_till_done()  # changed back on the controller's own panel
+    await _advance(hass, freezer, 31)
+    await _set_hwc(hass, 50)
+    assert _writes(mqtt_client_mock, HWC_SET) == ["51.0"]
+
+
+async def test_rejected_write_can_be_retried(hass, mqtt_mock, mqtt_client_mock, freezer):
+    """Our own /set message is not a value: if ebusd rejects 51, setting 51 again writes."""
+    await _setup(hass)
+    mqtt_client_mock.publish.reset_mock()
+    await _set_hwc(hass, 51)
+    async_fire_mqtt_message(hass, HWC_SET, "51.0")  # the broker echoes our own write
+    await hass.async_block_till_done()
+    await _advance(hass, freezer, 31)  # ebusd never confirmed it
+    await _set_hwc(hass, 51)
+    assert _writes(mqtt_client_mock, HWC_SET) == ["51.0", "51.0"]

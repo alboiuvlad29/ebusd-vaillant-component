@@ -26,6 +26,9 @@ _LOGGER = logging.getLogger(__name__)
 
 QUIET_SECONDS = 1.5
 MIN_INTERVAL_SECONDS = 10.0
+# How long after a write the cached value may still be the old one (ebusd's echo of
+# the write has not arrived yet), so "equal to the cache" does not mean "unchanged".
+ECHO_WINDOW_SECONDS = 30.0
 
 
 def _same(current: Any, payload: str) -> bool:
@@ -43,18 +46,19 @@ class WriteGuard:
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
         self._last_sent: dict[str, datetime] = {}
+        self._last_payload: dict[str, str] = {}
         self._pending: dict[str, str] = {}
         self._timers: dict[str, Callable[[], None]] = {}
 
     async def async_write(self, topic: str, payload: str, current: Any = None) -> None:
         """Write *payload* to *topic*; *current* is the value it would replace, if known."""
-        if _same(current, payload):
+        now = dt_util.utcnow()
+        last = self._last_sent.get(topic)
+        if _same(current, payload) and self._settled(topic, payload, now):
             _LOGGER.debug("Write skipped, unchanged: %s = %s", topic, payload)
             self._cancel(topic)
             self._pending.pop(topic, None)
             return
-        now = dt_util.utcnow()
-        last = self._last_sent.get(topic)
         if topic not in self._pending and (
             last is None or (now - last).total_seconds() >= MIN_INTERVAL_SECONDS
         ):
@@ -66,6 +70,13 @@ class WriteGuard:
         _LOGGER.debug("Write coalesced: %s = %s (in %.1f s)", topic, payload, delay)
         self._cancel(topic)
         self._timers[topic] = async_call_later(self._hass, delay, self._flush_cb(topic))
+
+    def _settled(self, topic: str, payload: str, now: datetime) -> bool:
+        """Whether the cache can be trusted: no recent write of a different value."""
+        last = self._last_sent.get(topic)
+        if last is None or (now - last).total_seconds() >= ECHO_WINDOW_SECONDS:
+            return True
+        return _same(self._last_payload.get(topic), payload)
 
     def _flush_cb(self, topic: str) -> Callable[[Any], None]:
         @callback
@@ -79,6 +90,7 @@ class WriteGuard:
 
     async def _send(self, topic: str, payload: str) -> None:
         self._last_sent[topic] = dt_util.utcnow()
+        self._last_payload[topic] = payload
         _LOGGER.debug("MQTT write: %s -> %s", topic, payload)
         await mqtt.async_publish(self._hass, topic, payload)
 
