@@ -2,6 +2,18 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.6.0
+
+- Faults and health entities, all **disabled by default** (enable them when wanted):
+  - **Current error** sensor per device (heat pump, controller): `none` or the error
+    codes; a Repairs issue is raised while a code is present and removed when it clears.
+  - **Low pressure** binary sensor: on below the new `low_pressure_threshold` option
+    (default 1.5 bar) or when the heat pump reports a pressure loss. Uses the fast
+    `Status07.displaypressure` when available.
+  - **eBUS connected** binary sensor from `ebusd/global/running` and `signal`.
+- A Water Pressure sensor is created from `hmu Status07.displaypressure` when no other
+  pressure message exists.
+
 ## 1.5.0
 
 - Smarter polling priorities. The on/off option **Prime poll values** is replaced by

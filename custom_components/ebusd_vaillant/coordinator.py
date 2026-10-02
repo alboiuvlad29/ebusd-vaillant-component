@@ -35,7 +35,9 @@ from .const import (
 from .discovery import (
     DiscoveredClimate,
     DiscoveredCoolTempLimit,
+    DiscoveredErrorSensor,
     DiscoveredFlowTempRange,
+    DiscoveredPressureMonitor,
     DiscoveredSensor,
     DiscoveredWaterHeater,
     TopicConfig,
@@ -79,7 +81,7 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.sf_mode is not None,
             e.mode_vocab,
         )
-    return (e.name,)
+    return (type(e).__name__, e.key)
 
 
 Listener = Callable[[list[DiscoveredEntity]], None]
@@ -249,6 +251,10 @@ class EbusdCoordinator:
                 )
             elif isinstance(entity, DiscoveredCoolTempLimit):
                 add([entity.cool_temp, entity.run_data_status], False)
+            elif isinstance(entity, DiscoveredErrorSensor):
+                add([entity.topic], False)
+            elif isinstance(entity, DiscoveredPressureMonitor):
+                continue  # its topics come from the pressure sensor or overheard Status07
             else:  # DiscoveredClimate
                 add(
                     [

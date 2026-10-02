@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+from unittest.mock import PropertyMock, patch
 
 import pytest
 import yaml
@@ -56,3 +57,14 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 def expected_lingering_timers() -> bool:
     # MQTT mock leaves reconnect timers; suppress the framework's teardown check.
     return True
+
+
+@pytest.fixture
+def entity_registry_enabled_by_default():
+    """Enable entities that are disabled by default (same as Home Assistant core's fixture)."""
+    with patch(
+        "homeassistant.helpers.entity.Entity.entity_registry_enabled_default",
+        new_callable=PropertyMock,
+        return_value=True,
+    ):
+        yield

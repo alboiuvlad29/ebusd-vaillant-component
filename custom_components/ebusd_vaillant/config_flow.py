@@ -17,6 +17,7 @@ from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 from .const import (
     CONF_AWAY_MODE_DURATION,
     CONF_COOLING,
+    CONF_LOW_PRESSURE,
     CONF_MAX_ZONES,
     CONF_MQTT_PREFIX,
     CONF_NAME,
@@ -28,6 +29,7 @@ from .const import (
     COOLING_OPTIONS,
     DEFAULT_AWAY_MODE_DURATION,
     DEFAULT_COOLING,
+    DEFAULT_LOW_PRESSURE,
     DEFAULT_MAX_ZONES,
     DEFAULT_MQTT_PREFIX,
     DEFAULT_NAME,
@@ -115,6 +117,10 @@ class EbusdVaillantOptionsFlow(OptionsFlow):
                     CONF_MAX_ZONES,
                     default=self._config_entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=4)),
+                vol.Optional(
+                    CONF_LOW_PRESSURE,
+                    default=self._config_entry.options.get(CONF_LOW_PRESSURE, DEFAULT_LOW_PRESSURE),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=5.0)),
                 vol.Optional(
                     CONF_POLL_PRIMING,
                     default=poll_priming(self._config_entry.options),

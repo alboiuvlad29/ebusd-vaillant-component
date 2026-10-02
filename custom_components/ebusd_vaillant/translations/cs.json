@@ -48,6 +48,19 @@
       "heating_boost_end": {
         "name": "Konec boostu topení"
       }
+    },
+    "sensor": {
+      "current_error": {
+        "name": "Aktuální chyba"
+      }
+    },
+    "binary_sensor": {
+      "low_pressure": {
+        "name": "Nízký tlak"
+      },
+      "ebus_connected": {
+        "name": "eBUS připojen"
+      }
     }
   },
   "config": {
@@ -83,7 +96,8 @@
           "zones_with_temp_only": "Pouze zóny s naměřenou teplotou",
           "cooling": "Chlazení",
           "temperature_write": "Změny teploty",
-          "poll_priming": "Priority dotazování"
+          "poll_priming": "Priority dotazování",
+          "low_pressure_threshold": "Práh nízkého tlaku (bar)"
         },
         "data_description": {
           "away_mode_duration": "Počet dní, po které trvá režim nepřítomnosti při aktivaci (výchozí: 7)",
@@ -92,7 +106,8 @@
           "zones_with_temp_only": "Pokud je povoleno (výchozí), jsou vytvořeny klimatické entity pouze pro zóny, které hlásí aktuální teplotu. Pokud je zakázáno, jsou entity vytvořeny pro všechny zóny až do nakonfigurovaného maxima.",
           "cooling": "Zda zóny nabízejí chlazení (rozsah topení/chlazení a režim chlazení). Auto rozhodne podle hodnot systému, např. Hc1CoolingEnabled nebo výnosu chlazení. Bez chlazení má každá zóna jednu cílovou teplotu.",
           "temperature_write": "Co zapisuje změna cílové teploty. Chytře: v režimu Ručně trvalou žádanou hodnotu, v režimu Časově řízeno dočasné rychlé veto. Vždy rychlé veto: chování před 1.1.0.",
-          "poll_priming": "Které hodnoty integrace nechá ebusd dotazovat a jak často. Důležité rychle: režimy, žádané hodnoty, teploty místnosti a teplé vody, boost a výkon rychle (?1), ostatní pomalu (?5). Vše rychle: všechny hodnoty s ?1. Vypnuto: jen vlastní dotazování ebusd."
+          "poll_priming": "Které hodnoty integrace nechá ebusd dotazovat a jak často. Důležité rychle: režimy, žádané hodnoty, teploty místnosti a teplé vody, boost a výkon rychle (?1), ostatní pomalu (?5). Vše rychle: všechny hodnoty s ?1. Vypnuto: jen vlastní dotazování ebusd.",
+          "low_pressure_threshold": "Binární senzor Nízký tlak se zapne pod tímto tlakem systému (výchozí: 1,5)"
         }
       }
     }
@@ -117,6 +132,12 @@
         "all": "Vše rychle",
         "off": "Vypnuto"
       }
+    }
+  },
+  "issues": {
+    "device_error": {
+      "title": "{device} hlásí chybu",
+      "description": "{device} hlásí chybový kód(y) {codes}. Zkontrolujte displej nebo instalační příručku. Zpráva zmizí, jakmile bude chyba odstraněna."
     }
   }
 }
