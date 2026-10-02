@@ -12,25 +12,32 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
+from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .const import (
     CONF_AWAY_MODE_DURATION,
+    CONF_COOLING,
     CONF_MAX_ZONES,
     CONF_MQTT_PREFIX,
     CONF_NAME,
     CONF_PRIME_VALUES,
     CONF_QUICK_VETO_DURATION,
     CONF_QUICK_VETO_TEMP,
+    CONF_TEMPERATURE_WRITE,
     CONF_ZONES_WITH_TEMP_ONLY,
+    COOLING_OPTIONS,
     DEFAULT_AWAY_MODE_DURATION,
+    DEFAULT_COOLING,
     DEFAULT_MAX_ZONES,
     DEFAULT_MQTT_PREFIX,
     DEFAULT_NAME,
     DEFAULT_PRIME_VALUES,
     DEFAULT_QUICK_VETO_DURATION,
     DEFAULT_QUICK_VETO_TEMP,
+    DEFAULT_TEMPERATURE_WRITE,
     DEFAULT_ZONES_WITH_TEMP_ONLY,
     DOMAIN,
+    TEMPERATURE_WRITE_OPTIONS,
 )
 
 STEP_USER_SCHEMA = vol.Schema(
@@ -117,5 +124,21 @@ class EbusdVaillantOptionsFlow(OptionsFlow):
                         CONF_ZONES_WITH_TEMP_ONLY, DEFAULT_ZONES_WITH_TEMP_ONLY
                     ),
                 ): bool,
+                vol.Optional(
+                    CONF_COOLING,
+                    default=self._config_entry.options.get(CONF_COOLING, DEFAULT_COOLING),
+                ): SelectSelector(
+                    SelectSelectorConfig(options=COOLING_OPTIONS, translation_key=CONF_COOLING)
+                ),
+                vol.Optional(
+                    CONF_TEMPERATURE_WRITE,
+                    default=self._config_entry.options.get(
+                        CONF_TEMPERATURE_WRITE, DEFAULT_TEMPERATURE_WRITE
+                    ),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=TEMPERATURE_WRITE_OPTIONS, translation_key=CONF_TEMPERATURE_WRITE
+                    )
+                ),
             }
         )

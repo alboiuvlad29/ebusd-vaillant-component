@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .const import (
+    COOLING_AUTO,
+    COOLING_DISABLED,
+    COOLING_ENABLED,
     DEVICE_TYPE_LABELS,
     HWC_OPERATION_MODES,
     MODE_VOCAB_DAY,
@@ -49,6 +52,11 @@ class DiscoveredClimate:
     run_data_status: TopicConfig | None = None
     hc_status: TopicConfig | None = None
     mode_vocab: str = MODE_VOCAB_DAY  # "day" (old definitions) or "manual" (new)
+    # Z{n}ManualTemp/DayTemp: the permanent setpoint written in manual mode
+    manual_temperature: TopicConfig | None = None
+    # Z{n}TempDesired: the target the controller is currently aiming for
+    temp_desired: TopicConfig | None = None
+    cooling: bool = True
     min_temp: float = 5.0
     max_temp: float = 30.0
     temp_step: float = 0.5
@@ -409,6 +417,15 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
         "Z{n}HolidayEndPeriod",
         "z{n}HolidayEndDate",
     ],
+    "zone_temp_desired": [
+        "Z{n}TempDesired",
+        "Z{n}ActualRoomTempDesired",
+        "z{n}ActualHeatingRoomTempDesired",
+    ],
+    "zone_cooling_enabled": ["Hc{n}CoolingEnabled"],
+    "cooling_enabled": ["ActiveCoolingEnabled"],
+    "cooling_yield": ["YieldCooling"],
+    "cooling_release": ["releasecooling"],
     "zone_quick_veto_temp": ["Z{n}QuickVetoTemp"],
     "zone_quick_veto_duration": ["Z{n}QuickVetoDuration"],
     "zone_quick_veto_end_date": ["Z{n}QuickVetoEndDate"],
@@ -524,6 +541,71 @@ def _detect_mode_vocab(msgs: dict[str, Any], max_zones: int) -> str:
     return MODE_VOCAB_DAY
 
 
+_TRUE_VALUES = frozenset({"1", "yes", "on", "true", "enabled"})
+_FALSE_VALUES = frozenset({"0", "no", "off", "false", "disabled"})
+
+
+def _parse_flag(value: Any) -> bool | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in _TRUE_VALUES:
+        return True
+    if text in _FALSE_VALUES:
+        return False
+    return None
+
+
+def _first_value(by_device: dict[str, dict[str, Any]], role: str, **fmt_kwargs: Any) -> Any:
+    """Return the first non-null value for *role* across all devices."""
+    for device_id, msgs in by_device.items():
+        if device_id.lower().startswith("scan."):
+            continue
+        key, fld = _find_nested(msgs, role, **fmt_kwargs)
+        if key is not None:
+            value = _get(msgs[key], fld)
+            if value is not None:
+                return value
+    return None
+
+
+def _global_cooling(by_device: dict[str, dict[str, Any]]) -> bool | None:
+    """Whether the system has cooling, from system-wide signals; None if unknown.
+
+    An explicit ActiveCoolingEnabled wins. Otherwise any sign that cooling has run
+    (YieldCooling > 0, SetMode.releasecooling = 1, a cool_* status code) means yes,
+    and a cooling yield of exactly 0 means no.
+    """
+    explicit = _parse_flag(_first_value(by_device, "cooling_enabled"))
+    if explicit is not None:
+        return explicit
+    yield_value = _first_value(by_device, "cooling_yield")
+    if _is_number(yield_value) and float(yield_value) > 0:
+        return True
+    if _parse_flag(_first_value(by_device, "cooling_release")):
+        return True
+    status = _first_value(by_device, "run_data_status")
+    if status is not None and str(status).startswith("cool_"):
+        return True
+    if _is_number(yield_value):
+        return False
+    return None
+
+
+def _zone_cooling(
+    by_device: dict[str, dict[str, Any]], zone: int, mode: str, global_cooling: bool | None
+) -> bool:
+    """Whether a zone offers cooling. Unknown keeps the behaviour before 1.1.0 (cooling)."""
+    if mode == COOLING_ENABLED:
+        return True
+    if mode == COOLING_DISABLED:
+        return False
+    explicit = _parse_flag(_first_value(by_device, "zone_cooling_enabled", n=zone))
+    if explicit is not None:
+        return explicit
+    return global_cooling is not False
+
+
 def _topic_config(
     prefix: str,
     device: str,
@@ -543,6 +625,7 @@ def _analyze(
     display_name: str = "Vaillant",
     max_zones: int = 4,
     zones_with_temp_only: bool = True,
+    cooling_mode: str = COOLING_AUTO,
 ) -> list[
     DiscoveredClimate
     | DiscoveredWaterHeater
@@ -588,6 +671,7 @@ def _analyze(
 
     # Discover manufacturer once (all devices on a Vaillant bus share the same MF).
     _mf = discover_manufacturer(by_device)
+    _global_cool = _global_cooling(by_device)
 
     for device_id, msgs in by_device.items():
         # Skip ebusd meta-devices that carry no heating entities.
@@ -765,7 +849,8 @@ def _analyze(
                 if _get(msgs[zrm_key], zrm_field) == "none":
                     continue
 
-            hvac_modes = list(ZONE_HVAC_MODES[_vocab])
+            cooling = _zone_cooling(by_device, zone, cooling_mode, _global_cool)
+            hvac_modes = [m for m in ZONE_HVAC_MODES[_vocab] if cooling or m != "cool"]
 
             day_key = _resolve_key(msgs, "zone_day_temp", n=zone)
             # A stale retained Z{n}DayTemp may linger after switching to the newer
@@ -780,6 +865,11 @@ def _analyze(
                 if room_key
                 else None
             )
+
+            if not cooling:
+                # Without cooling a heat/cool range is meaningless: one target only.
+                cooling_key = None
+                night_key = None
 
             if day_key and cooling_key:
                 t_target = None
@@ -869,6 +959,18 @@ def _analyze(
             )
             has_quick_veto = bool(qv_temp_key or qv_dur_key or qv_ed_key or qv_et_key)
 
+            manual_temperature = (
+                _topic_config(prefix, device_id, day_key, _infer_field(msgs[day_key]))
+                if day_key
+                else None
+            )
+            td_key, td_field = _find_nested(msgs, "zone_temp_desired", n=zone)
+            temp_desired = (
+                _topic_config(prefix, device_id, td_key, td_field, writable=False)
+                if td_key
+                else None
+            )
+
             hc_status_key, hc_status_field = _find_nested(msgs, "hc_status", n=zone)
             hc_status_cfg = (
                 _topic_config(prefix, device_id, hc_status_key, hc_status_field, writable=False)
@@ -899,6 +1001,9 @@ def _analyze(
                     run_data_status=run_data_status_cfg,
                     hc_status=hc_status_cfg,
                     mode_vocab=_vocab,
+                    manual_temperature=manual_temperature,
+                    temp_desired=temp_desired,
+                    cooling=cooling,
                     device_key=f"{device_id}_zone{zone}",
                     device_name=f"{display_name} Zone {zone}",
                     parent_key=prefix,

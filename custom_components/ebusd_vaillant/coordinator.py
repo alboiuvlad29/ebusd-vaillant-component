@@ -17,9 +17,11 @@ from .const import (
     _DISCOVERY_TOPICS_HWC,
     _DISCOVERY_TOPICS_PRESSURE,
     _DISCOVERY_TOPICS_ZONE,
+    CONF_COOLING,
     CONF_MAX_ZONES,
     CONF_PRIME_VALUES,
     CONF_ZONES_WITH_TEMP_ONLY,
+    DEFAULT_COOLING,
     DEFAULT_MANUFACTURER,
     DEFAULT_MAX_ZONES,
     DEFAULT_PRIME_VALUES,
@@ -56,6 +58,10 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.run_data_status is not None,
             e.hc_status is not None,
             e.mode_vocab,
+            tuple(e.hvac_modes),
+            e.manual_temperature.read_topic if e.manual_temperature else None,
+            e.target_temperature.read_topic if e.target_temperature else None,
+            e.temp_desired is not None,
         )
     if isinstance(e, DiscoveredWaterHeater):
         return (
@@ -170,19 +176,24 @@ class EbusdCoordinator:
     def add_listener(self, listener: Listener) -> None:
         """Register a listener. Fires immediately with current state, then on each new discovery."""
         self._listeners.append(listener)
-        entities = _analyze(
-            self._by_device,
-            self._prefix,
-            self._display_name,
-            max_zones=self._entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
-            zones_with_temp_only=self._entry.options.get(
-                CONF_ZONES_WITH_TEMP_ONLY, DEFAULT_ZONES_WITH_TEMP_ONLY
-            ),
-        )
+        entities = self._analyze()
         if entities:
             listener(entities)
             if self._entry.options.get(CONF_PRIME_VALUES, DEFAULT_PRIME_VALUES):
                 self._schedule_task(self._prime_values(entities), "ebusd prime values")
+
+    def _analyze(self) -> list[DiscoveredEntity]:
+        options = self._entry.options
+        return _analyze(
+            self._by_device,
+            self._prefix,
+            self._display_name,
+            max_zones=options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
+            zones_with_temp_only=options.get(
+                CONF_ZONES_WITH_TEMP_ONLY, DEFAULT_ZONES_WITH_TEMP_ONLY
+            ),
+            cooling_mode=options.get(CONF_COOLING, DEFAULT_COOLING),
+        )
 
     def _collect_read_topics(self, entities: list[DiscoveredEntity]) -> set[str]:
         """Collect all unique read topics from discovered entities."""
@@ -231,6 +242,8 @@ class EbusdCoordinator:
                     entity.quick_veto_end_time,
                     entity.run_data_status,
                     entity.hc_status,
+                    entity.manual_temperature,
+                    entity.temp_desired,
                 ]
             for cfg in topic_attrs:
                 if cfg is not None:
@@ -266,15 +279,7 @@ class EbusdCoordinator:
             return  # unchanged  -  skip re-analysis
 
         device_msgs[msg_name] = payload
-        entities = _analyze(
-            self._by_device,
-            self._prefix,
-            self._display_name,
-            max_zones=self._entry.options.get(CONF_MAX_ZONES, DEFAULT_MAX_ZONES),
-            zones_with_temp_only=self._entry.options.get(
-                CONF_ZONES_WITH_TEMP_ONLY, DEFAULT_ZONES_WITH_TEMP_ONLY
-            ),
-        )
+        entities = self._analyze()
         new_sigs = frozenset(_entity_sig(e) for e in entities)
         if new_sigs == self._known_entity_sigs:
             return  # no change in entity set or config  -  skip listener calls

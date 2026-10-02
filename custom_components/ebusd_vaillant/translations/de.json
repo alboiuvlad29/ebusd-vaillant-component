@@ -42,15 +42,34 @@
           "quick_veto_duration": "Standard-Schnellkorrektur-Dauer (Stunden)",
           "max_zones": "Anzahl der Zonen",
           "prime_poll_values": "Geräte beim Start erkennen",
-          "zones_with_temp_only": "Nur Zonen mit Temperaturmessung"
+          "zones_with_temp_only": "Nur Zonen mit Temperaturmessung",
+          "cooling": "Kühlung",
+          "temperature_write": "Temperaturänderungen"
         },
         "data_description": {
           "away_mode_duration": "Anzahl der Tage, die der Abwesenheitsmodus beim Aktivieren dauert (Standard: 7)",
           "quick_veto_duration": "Anzahl der Stunden, die die Schnellkorrektur beim Auslösen dauert (Standard: 3)",
           "max_zones": "Begrenzt die Anzahl der erstellten Zonen-Entitäten (Standard: 4)",
           "prime_poll_values": "Versucht, typische MQTT-Topic-Namen abzufragen, um Werte sofort beim Start anzuzeigen. Wenn deaktiviert, werden Entitäten verfügbar, sobald MQTT-Werte veröffentlicht werden (Standard: an)",
-          "zones_with_temp_only": "Wenn aktiviert (Standard), werden nur Klima-Entitäten für Zonen erstellt, die eine aktuelle Temperatur melden. Wenn deaktiviert, werden Entitäten für alle Zonen bis zum konfigurierten Maximum erstellt."
+          "zones_with_temp_only": "Wenn aktiviert (Standard), werden nur Klima-Entitäten für Zonen erstellt, die eine aktuelle Temperatur melden. Wenn deaktiviert, werden Entitäten für alle Zonen bis zum konfigurierten Maximum erstellt.",
+          "cooling": "Ob Zonen Kühlung anbieten (Heiz-/Kühl-Zielbereich und Kühlmodus). Auto entscheidet anhand der Systemwerte, z. B. Hc1CoolingEnabled oder Kühlertrag. Ohne Kühlung hat jede Zone eine Zieltemperatur.",
+          "temperature_write": "Was eine Änderung der Zieltemperatur schreibt. Smart: im Modus Manuell den festen Sollwert, im Modus Zeitgesteuert eine Schnellkorrektur. Immer Schnellkorrektur: Verhalten vor 1.1.0."
         }
+      }
+    }
+  },
+  "selector": {
+    "cooling": {
+      "options": {
+        "auto": "Auto (erkennen)",
+        "enabled": "Aktiviert",
+        "disabled": "Deaktiviert"
+      }
+    },
+    "temperature_write": {
+      "options": {
+        "smart": "Smart (Manuell: Sollwert, Zeitgesteuert: Schnellkorrektur)",
+        "quick_veto": "Immer Schnellkorrektur"
       }
     }
   }

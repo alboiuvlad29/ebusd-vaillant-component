@@ -12,7 +12,6 @@ from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CONF_MQTT_PREFIX,
@@ -143,9 +142,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    ent_reg = er.async_get(hass)
-    for ent in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
-        ent_reg.async_remove(ent.entity_id)
+    # Reload only: keep the entity registry so entity IDs, areas and customizations survive.
     await hass.config_entries.async_reload(entry.entry_id)
 
 

@@ -42,15 +42,34 @@
           "quick_veto_duration": "Durata predefinita veto rapido (ore)",
           "max_zones": "Numero di zone",
           "prime_poll_values": "Scopri dispositivi all'avvio",
-          "zones_with_temp_only": "Solo zone con una lettura di temperatura"
+          "zones_with_temp_only": "Solo zone con una lettura di temperatura",
+          "cooling": "Raffrescamento",
+          "temperature_write": "Modifiche di temperatura"
         },
         "data_description": {
           "away_mode_duration": "Numero di giorni che dura la modalità assenza quando attivata (predefinito: 7)",
           "quick_veto_duration": "Numero di ore che dura il veto rapido quando attivato (predefinito: 3)",
           "max_zones": "Limita quante entità di zona vengono create (predefinito: 4)",
           "prime_poll_values": "Tenta di richiedere nomi di argomenti MQTT tipici per poter mostrare i valori immediatamente all'avvio. Se disabilitato, le entità diventano disponibili man mano che i valori MQTT vengono pubblicati (predefinito: attivo)",
-          "zones_with_temp_only": "Quando attivato (predefinito), vengono create entità climatiche solo per le zone che riportano una temperatura attuale. Quando disattivato, vengono create entità per tutte le zone fino al massimo configurato."
+          "zones_with_temp_only": "Quando attivato (predefinito), vengono create entità climatiche solo per le zone che riportano una temperatura attuale. Quando disattivato, vengono create entità per tutte le zone fino al massimo configurato.",
+          "cooling": "Se le zone offrono il raffrescamento (intervallo caldo/freddo e modalità freddo). Auto decide in base a ciò che il sistema riporta, ad es. Hc1CoolingEnabled o la resa di raffrescamento. Senza raffrescamento ogni zona ha una sola temperatura obiettivo.",
+          "temperature_write": "Cosa scrive una modifica della temperatura obiettivo. Intelligente: il setpoint permanente in modalità Manuale, un veto rapido temporaneo in modalità Programmata. Sempre veto rapido: comportamento precedente alla 1.1.0."
         }
+      }
+    }
+  },
+  "selector": {
+    "cooling": {
+      "options": {
+        "auto": "Auto (rileva)",
+        "enabled": "Attivato",
+        "disabled": "Disattivato"
+      }
+    },
+    "temperature_write": {
+      "options": {
+        "smart": "Intelligente (Manuale: setpoint, Programmata: veto rapido)",
+        "quick_veto": "Sempre veto rapido"
       }
     }
   }
