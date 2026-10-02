@@ -48,6 +48,19 @@
       "heating_boost_end": {
         "name": "Ende Heizungs-Boost"
       }
+    },
+    "sensor": {
+      "current_error": {
+        "name": "Aktueller Fehler"
+      }
+    },
+    "binary_sensor": {
+      "low_pressure": {
+        "name": "Niedriger Druck"
+      },
+      "ebus_connected": {
+        "name": "eBUS verbunden"
+      }
     }
   },
   "config": {
@@ -83,7 +96,8 @@
           "zones_with_temp_only": "Nur Zonen mit Temperaturmessung",
           "cooling": "Kühlung",
           "temperature_write": "Temperaturänderungen",
-          "poll_priming": "Abfrageprioritäten"
+          "poll_priming": "Abfrageprioritäten",
+          "low_pressure_threshold": "Schwelle niedriger Druck (bar)"
         },
         "data_description": {
           "away_mode_duration": "Anzahl der Tage, die der Abwesenheitsmodus beim Aktivieren dauert (Standard: 7)",
@@ -92,7 +106,8 @@
           "zones_with_temp_only": "Wenn aktiviert (Standard), werden nur Klima-Entitäten für Zonen erstellt, die eine aktuelle Temperatur melden. Wenn deaktiviert, werden Entitäten für alle Zonen bis zum konfigurierten Maximum erstellt.",
           "cooling": "Ob Zonen Kühlung anbieten (Heiz-/Kühl-Zielbereich und Kühlmodus). Auto entscheidet anhand der Systemwerte, z. B. Hc1CoolingEnabled oder Kühlertrag. Ohne Kühlung hat jede Zone eine Zieltemperatur.",
           "temperature_write": "Was eine Änderung der Zieltemperatur schreibt. Smart: im Modus Manuell den festen Sollwert, im Modus Zeitgesteuert eine Schnellkorrektur. Immer Schnellkorrektur: Verhalten vor 1.1.0.",
-          "poll_priming": "Welche Werte die Integration von ebusd abfragen lässt und wie oft. Wichtiges schnell: Modi, Sollwerte, Raum- und Warmwassertemperaturen, Boost- und Leistungswerte schnell (?1), alles andere langsam (?5). Alles schnell: alle Werte mit ?1. Aus: nur die eigene Abfrage von ebusd."
+          "poll_priming": "Welche Werte die Integration von ebusd abfragen lässt und wie oft. Wichtiges schnell: Modi, Sollwerte, Raum- und Warmwassertemperaturen, Boost- und Leistungswerte schnell (?1), alles andere langsam (?5). Alles schnell: alle Werte mit ?1. Aus: nur die eigene Abfrage von ebusd.",
+          "low_pressure_threshold": "Der Binärsensor Niedriger Druck schaltet sich unterhalb dieses Anlagendrucks ein (Standard: 1,5)"
         }
       }
     }
@@ -117,6 +132,12 @@
         "all": "Alles schnell",
         "off": "Aus"
       }
+    }
+  },
+  "issues": {
+    "device_error": {
+      "title": "{device} meldet einen Fehler",
+      "description": "{device} meldet Fehlercode(s) {codes}. Prüfe das Display oder die Installationsanleitung. Diese Meldung verschwindet, sobald der Fehler behoben ist."
     }
   }
 }

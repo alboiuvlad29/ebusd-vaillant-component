@@ -28,3 +28,16 @@ Entity names are translated and avoid Vaillant's term "quick veto": the zone swi
 (`switch.<zone>_quick_veto`, `switch.<zone>_away_mode`, `switch.<hot water>_boost`,
 `switch.<hot water>_away_mode`, `datetime.<zone>_quick_veto_end`), so automations keep
 working. The water heater has a `boost_active` attribute.
+
+## Health (disabled by default)
+
+These entities are created disabled; enable them in the entity settings if you want them.
+
+| Entity | Source | Notes |
+|---|---|---|
+| **Current error** (per device, e.g. heat pump, controller) | `Currenterror` (`error` .. `error_4`, null = none) | State `none` or the codes, attribute `codes`. While a code is present, a Repairs issue is shown. |
+| **Low pressure** (system device) | `hmu Status07.displaypressure` (every ~4 s), else the pressure sensor; `Status07.heatermain_b5_pressureloss` | On below the `low_pressure_threshold` option (default 1.5 bar) or when the heat pump reports a pressure loss. 0 bar counts as no reading. |
+| **eBUS connected** (system device) | `ebusd/global/running`, `ebusd/global/signal` | Off when ebusd stops or loses the bus signal. |
+
+When no other pressure message exists, a Water Pressure sensor is created from
+`hmu Status07.displaypressure`.

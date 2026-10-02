@@ -48,6 +48,19 @@
       "heating_boost_end": {
         "name": "Fin du boost chauffage"
       }
+    },
+    "sensor": {
+      "current_error": {
+        "name": "Erreur actuelle"
+      }
+    },
+    "binary_sensor": {
+      "low_pressure": {
+        "name": "Pression basse"
+      },
+      "ebus_connected": {
+        "name": "eBUS connecté"
+      }
     }
   },
   "config": {
@@ -83,7 +96,8 @@
           "zones_with_temp_only": "Uniquement les zones avec une mesure de température",
           "cooling": "Refroidissement",
           "temperature_write": "Changements de température",
-          "poll_priming": "Priorités d'interrogation"
+          "poll_priming": "Priorités d'interrogation",
+          "low_pressure_threshold": "Seuil de pression basse (bar)"
         },
         "data_description": {
           "away_mode_duration": "Nombre de jours dure le mode absence lorsqu'il est activé (par défaut : 7)",
@@ -92,7 +106,8 @@
           "zones_with_temp_only": "Lorsqu'activé (par défaut), seules les entités climatiques pour les zones qui signalent une température actuelle sont créées. Lorsque désactivé, des entités sont créées pour toutes les zones jusqu'au maximum configuré.",
           "cooling": "Indique si les zones proposent le refroidissement (plage chaud/froid et mode froid). Auto décide selon ce que le système signale, p. ex. Hc1CoolingEnabled ou le rendement de refroidissement. Sans refroidissement, chaque zone a une seule consigne.",
           "temperature_write": "Ce qu'écrit un changement de consigne. Intelligent : la consigne permanente en mode Manuel, un veto rapide temporaire en mode Programmé. Toujours veto rapide : comportement avant 1.1.0.",
-          "poll_priming": "Les valeurs que l'intégration fait interroger par ebusd, et à quelle fréquence. Essentiel rapide : modes, consignes, températures ambiante et ECS, boost et puissance rapidement (?1), le reste lentement (?5). Tout rapide : toutes les valeurs à ?1. Arrêt : seulement l'interrogation propre d'ebusd."
+          "poll_priming": "Les valeurs que l'intégration fait interroger par ebusd, et à quelle fréquence. Essentiel rapide : modes, consignes, températures ambiante et ECS, boost et puissance rapidement (?1), le reste lentement (?5). Tout rapide : toutes les valeurs à ?1. Arrêt : seulement l'interrogation propre d'ebusd.",
+          "low_pressure_threshold": "Le capteur binaire Pression basse s'active en dessous de cette pression (par défaut : 1,5)"
         }
       }
     }
@@ -117,6 +132,12 @@
         "all": "Tout rapide",
         "off": "Arrêt"
       }
+    }
+  },
+  "issues": {
+    "device_error": {
+      "title": "{device} signale une erreur",
+      "description": "{device} signale le(s) code(s) d'erreur {codes}. Consultez l'écran ou le manuel d'installation. Ce message disparaît une fois l'erreur résolue."
     }
   }
 }

@@ -24,6 +24,10 @@ DEFAULT_MAX_ZONES = 4
 CONF_ZONES_WITH_TEMP_ONLY = "zones_with_temp_only"
 DEFAULT_ZONES_WITH_TEMP_ONLY = True
 
+# Pressure below which the Low pressure binary sensor turns on (bar).
+CONF_LOW_PRESSURE = "low_pressure_threshold"
+DEFAULT_LOW_PRESSURE = 1.5
+
 # Legacy on/off option (before 1.5.0); read when poll_priming is not set.
 CONF_PRIME_VALUES = "prime_poll_values"
 DEFAULT_PRIME_VALUES = True

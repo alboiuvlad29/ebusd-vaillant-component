@@ -48,6 +48,19 @@
       "heating_boost_end": {
         "name": "Heating boost end"
       }
+    },
+    "sensor": {
+      "current_error": {
+        "name": "Current error"
+      }
+    },
+    "binary_sensor": {
+      "low_pressure": {
+        "name": "Low pressure"
+      },
+      "ebus_connected": {
+        "name": "eBUS connected"
+      }
     }
   },
   "config": {
@@ -83,7 +96,8 @@
           "zones_with_temp_only": "Only zones with a temperature reading",
           "cooling": "Cooling",
           "temperature_write": "Temperature changes",
-          "poll_priming": "Polling priorities"
+          "poll_priming": "Polling priorities",
+          "low_pressure_threshold": "Low pressure threshold (bar)"
         },
         "data_description": {
           "away_mode_duration": "Number of days the away mode lasts when activated (default: 7)",
@@ -92,7 +106,8 @@
           "zones_with_temp_only": "When enabled (default), only create climate entities for zones that report a current temperature. When disabled, create entities for all zones up to the configured maximum.",
           "cooling": "Whether zones offer cooling (heat/cool target range and the cool mode). Auto decides from what the system reports, e.g. Hc1CoolingEnabled or the cooling yield. Without cooling each zone has one target temperature.",
           "temperature_write": "What changing a zone's target temperature writes. Smart: the permanent setpoint in Manual mode, a temporary boost (quick veto) in Time controlled mode. Always quick veto: the behaviour before 1.1.0.",
-          "poll_priming": "Which values the integration asks ebusd to poll, and how often. Essentials fast: modes, setpoints, room and hot water temperatures, boost and power values fast (?1), everything else slowly (?5). Everything fast: all values at ?1. Off: rely on ebusd's own polling."
+          "poll_priming": "Which values the integration asks ebusd to poll, and how often. Essentials fast: modes, setpoints, room and hot water temperatures, boost and power values fast (?1), everything else slowly (?5). Everything fast: all values at ?1. Off: rely on ebusd's own polling.",
+          "low_pressure_threshold": "The Low pressure binary sensor turns on below this system pressure (default: 1.5)"
         }
       }
     }
@@ -117,6 +132,12 @@
         "all": "Everything fast",
         "off": "Off"
       }
+    }
+  },
+  "issues": {
+    "device_error": {
+      "title": "{device} reports an error",
+      "description": "{device} reports error code(s) {codes}. Check the display or the installer manual. This message disappears when the error is cleared."
     }
   }
 }

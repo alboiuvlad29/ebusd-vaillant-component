@@ -48,6 +48,19 @@
       "heating_boost_end": {
         "name": "Fine boost riscaldamento"
       }
+    },
+    "sensor": {
+      "current_error": {
+        "name": "Errore attuale"
+      }
+    },
+    "binary_sensor": {
+      "low_pressure": {
+        "name": "Pressione bassa"
+      },
+      "ebus_connected": {
+        "name": "eBUS connesso"
+      }
     }
   },
   "config": {
@@ -83,7 +96,8 @@
           "zones_with_temp_only": "Solo zone con una lettura di temperatura",
           "cooling": "Raffrescamento",
           "temperature_write": "Modifiche di temperatura",
-          "poll_priming": "Priorità di interrogazione"
+          "poll_priming": "Priorità di interrogazione",
+          "low_pressure_threshold": "Soglia pressione bassa (bar)"
         },
         "data_description": {
           "away_mode_duration": "Numero di giorni che dura la modalità assenza quando attivata (predefinito: 7)",
@@ -92,7 +106,8 @@
           "zones_with_temp_only": "Quando attivato (predefinito), vengono create entità climatiche solo per le zone che riportano una temperatura attuale. Quando disattivato, vengono create entità per tutte le zone fino al massimo configurato.",
           "cooling": "Se le zone offrono il raffrescamento (intervallo caldo/freddo e modalità freddo). Auto decide in base a ciò che il sistema riporta, ad es. Hc1CoolingEnabled o la resa di raffrescamento. Senza raffrescamento ogni zona ha una sola temperatura obiettivo.",
           "temperature_write": "Cosa scrive una modifica della temperatura obiettivo. Intelligente: il setpoint permanente in modalità Manuale, un veto rapido temporaneo in modalità Programmata. Sempre veto rapido: comportamento precedente alla 1.1.0.",
-          "poll_priming": "Quali valori l'integrazione fa interrogare a ebusd e con che frequenza. Essenziali veloci: modalità, setpoint, temperature ambiente e ACS, boost e potenza veloci (?1), il resto lentamente (?5). Tutto veloce: tutti i valori con ?1. Spento: solo l'interrogazione propria di ebusd."
+          "poll_priming": "Quali valori l'integrazione fa interrogare a ebusd e con che frequenza. Essenziali veloci: modalità, setpoint, temperature ambiente e ACS, boost e potenza veloci (?1), il resto lentamente (?5). Tutto veloce: tutti i valori con ?1. Spento: solo l'interrogazione propria di ebusd.",
+          "low_pressure_threshold": "Il sensore binario Pressione bassa si attiva sotto questa pressione dell'impianto (predefinito: 1,5)"
         }
       }
     }
@@ -117,6 +132,12 @@
         "all": "Tutto veloce",
         "off": "Spento"
       }
+    }
+  },
+  "issues": {
+    "device_error": {
+      "title": "{device} segnala un errore",
+      "description": "{device} segnala il codice di errore {codes}. Controlla il display o il manuale di installazione. Questo messaggio scompare quando l'errore è risolto."
     }
   }
 }

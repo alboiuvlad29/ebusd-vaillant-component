@@ -169,6 +169,43 @@ class DiscoveredWaterHeater:
     hw_version: str = ""
 
 
+@dataclass
+class DiscoveredErrorSensor:
+    """Current error codes of one device (Currenterror: error .. error_4, null = none)."""
+
+    device_id: str
+    key: str
+    name: str
+    topic: TopicConfig
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+@dataclass
+class DiscoveredPressureMonitor:
+    """System pressure watch: low-pressure threshold and the heat pump's pressure-loss flag."""
+
+    device_id: str
+    key: str
+    name: str
+    pressure: TopicConfig | None = None
+    pressure_loss: TopicConfig | None = None
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
 @dataclass(frozen=True)
 class SensorConfig:
     """Descriptor for an auto-discovered numeric sensor.
@@ -444,6 +481,7 @@ _ROLE_PATTERNS: dict[str, list[str]] = {
     "hwc_holiday_end_time": ["HwcHolidayEndTime"],
     "run_data_status": ["RunDataStatuscode", "Statuscode"],
     "hc_status": ["Hc{n}Status"],
+    "current_error": ["Currenterror", "CurrentError"],
     "zone_status": ["Z{n}Status", "z{n}Status"],
     "hc_min_flow_temp": ["Hc{n}MinFlowTempDesired"],
     "hc_max_flow_temp": ["Hc{n}MaxFlowTempDesired"],
@@ -1048,6 +1086,26 @@ def _analyze(
                 )
             )
 
+        # --- Current error codes ---
+        err_key = _resolve_key(msgs, "current_error")
+        if err_key and isinstance(msgs.get(err_key), dict):
+            _err_label = DEVICE_TYPE_LABELS.get(device_id.lower(), device_id.upper())
+            entities.append(
+                DiscoveredErrorSensor(
+                    device_id=device_id,
+                    key=f"{device_id}_current_error",
+                    name="Current error",
+                    topic=_topic_config(prefix, device_id, err_key, "", writable=False),
+                    device_key=device_id,
+                    device_name=f"{display_name} {_err_label}",
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
+                )
+            )
+
         # --- Auto-discovered sensors (pressure, energy, power, COP) ---
         _dev_label = DEVICE_TYPE_LABELS.get(device_id.lower(), device_id.upper())
         _heat_pump_key = device_id
@@ -1086,5 +1144,66 @@ def _analyze(
                     hw_version=_hw,
                 )
             )
+
+    # --- System pressure: Status07.displaypressure (every ~4 s) as fallback sensor,
+    # and a low-pressure monitor on the system device ---
+    _status07 = next(
+        (
+            (d_id, msgs["Status07"])
+            for d_id, msgs in by_device.items()
+            if isinstance(msgs.get("Status07"), dict)
+        ),
+        None,
+    )
+    pressure_sensors = [
+        e
+        for e in entities
+        if isinstance(e, DiscoveredSensor) and e.unique_id_prefix == "ebusd_pressure"
+    ]
+    fast_pressure = None
+    pressure_loss = None
+    if _status07 is not None:
+        s7_device, s7 = _status07
+        if "displaypressure" in s7:
+            fast_pressure = _topic_config(
+                prefix, s7_device, "Status07", "displaypressure.value", writable=False
+            )
+        if "heatermain_b5_pressureloss" in s7:
+            pressure_loss = _topic_config(
+                prefix, s7_device, "Status07", "heatermain_b5_pressureloss.value", writable=False
+            )
+        if fast_pressure is not None and not pressure_sensors:
+            _label = DEVICE_TYPE_LABELS.get(s7_device.lower(), s7_device.upper())
+            entities.append(
+                DiscoveredSensor(
+                    device_id=s7_device,
+                    key=f"{s7_device}_pressure",
+                    name="Water Pressure",
+                    topic=fast_pressure,
+                    device_class="pressure",
+                    state_class="measurement",
+                    unit="bar",
+                    unique_id_prefix="ebusd_pressure",
+                    device_key=s7_device,
+                    device_name=f"{display_name} {_label}",
+                    parent_key=prefix,
+                    manufacturer=_mf or "",
+                )
+            )
+    monitor_pressure = fast_pressure or (pressure_sensors[0].topic if pressure_sensors else None)
+    if monitor_pressure is not None or pressure_loss is not None:
+        entities.append(
+            DiscoveredPressureMonitor(
+                device_id=prefix,
+                key=f"{prefix}_low_pressure",
+                name="Low pressure",
+                pressure=monitor_pressure,
+                pressure_loss=pressure_loss,
+                device_key=prefix,
+                device_name=display_name,
+                parent_key=prefix,
+                manufacturer=_mf or "",
+            )
+        )
 
     return entities
