@@ -24,6 +24,11 @@ DEFAULT_MAX_ZONES = 4
 CONF_ZONES_WITH_TEMP_ONLY = "zones_with_temp_only"
 DEFAULT_ZONES_WITH_TEMP_ONLY = True
 
+# Legacy (before 1.11.0): show hot water boost as a fourth operation mode on the water
+# heater. Boost now lives on the Boost switch and button; this option will be removed.
+CONF_HWC_BOOST_AS_MODE = "hot_water_boost_as_mode"
+DEFAULT_HWC_BOOST_AS_MODE = False
+
 # Pressure below which the Low pressure binary sensor turns on (bar).
 CONF_LOW_PRESSURE = "low_pressure_threshold"
 DEFAULT_LOW_PRESSURE = 1.5

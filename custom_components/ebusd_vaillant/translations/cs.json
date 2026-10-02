@@ -89,6 +89,15 @@
       },
       "remote_room_humidity": {
         "name": "Dálkové ovládání {number} vlhkost místnosti"
+      },
+      "hot_water_status": {
+        "name": "Stav teplé vody"
+      },
+      "legionella_day": {
+        "name": "Ochrana proti legionele den"
+      },
+      "legionella_time": {
+        "name": "Ochrana proti legionele čas"
       }
     },
     "binary_sensor": {
@@ -100,6 +109,14 @@
       },
       "time_slot_active": {
         "name": "Časové okno aktivní"
+      },
+      "reheating_active": {
+        "name": "Dohřev aktivní"
+      }
+    },
+    "button": {
+      "hot_water_boost_start": {
+        "name": "Spustit boost"
       }
     }
   },
@@ -137,7 +154,8 @@
           "cooling": "Chlazení",
           "temperature_write": "Změny teploty",
           "poll_priming": "Priority dotazování",
-          "low_pressure_threshold": "Práh nízkého tlaku (bar)"
+          "low_pressure_threshold": "Práh nízkého tlaku (bar)",
+          "hot_water_boost_as_mode": "Zobrazit boost jako režim teplé vody (zastaralé)"
         },
         "data_description": {
           "away_mode_duration": "Počet dní, po které trvá režim nepřítomnosti při aktivaci (výchozí: 7)",
@@ -147,7 +165,8 @@
           "cooling": "Zda zóny nabízejí chlazení (rozsah topení/chlazení a režim chlazení). Auto rozhodne podle hodnot systému, např. Hc1CoolingEnabled nebo výnosu chlazení. Bez chlazení má každá zóna jednu cílovou teplotu.",
           "temperature_write": "Co zapisuje změna cílové teploty. Chytře: v režimu Ručně trvalou žádanou hodnotu, v režimu Časově řízeno dočasné rychlé veto. Vždy rychlé veto: chování před 1.1.0.",
           "poll_priming": "Které hodnoty integrace nechá ebusd dotazovat a jak často. Důležité rychle: režimy, žádané hodnoty, teploty místnosti a teplé vody, boost a výkon rychle (?1), ostatní pomalu (?5). Vše rychle: všechny hodnoty s ?1. Vypnuto: jen vlastní dotazování ebusd.",
-          "low_pressure_threshold": "Binární senzor Nízký tlak se zapne pod tímto tlakem systému (výchozí: 1,5)"
+          "low_pressure_threshold": "Binární senzor Nízký tlak se zapne pod tímto tlakem systému (výchozí: 1,5)",
+          "hot_water_boost_as_mode": "Zobrazit Boost jako čtvrtý režim ohřívače jako před 1.11.0. Boost je nyní na přepínači a tlačítku Boost; tato volba bude v pozdější verzi odstraněna."
         }
       }
     }

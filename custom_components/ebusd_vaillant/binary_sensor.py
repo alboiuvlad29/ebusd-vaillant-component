@@ -24,7 +24,7 @@ from .const import (
 )
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
-from .discovery import DiscoveredPressureMonitor, DiscoveredZoneFlag, TopicConfig, _get
+from .discovery import DiscoveredFlag, DiscoveredPressureMonitor, TopicConfig, _get
 
 _TRUE = frozenset({"1", "on", "yes", "true"})
 _FALSE = frozenset({"0", "off", "no", "false"})
@@ -67,9 +67,9 @@ async def async_setup_entry(
             if isinstance(e, DiscoveredPressureMonitor) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdLowPressureBinarySensor(hass, e, threshold))
-            elif isinstance(e, DiscoveredZoneFlag) and e.key not in seen:
+            elif isinstance(e, DiscoveredFlag) and e.key not in seen:
                 seen.add(e.key)
-                new.append(EbusdZoneFlagBinarySensor(hass, e))
+                new.append(EbusdFlagBinarySensor(hass, e))
         if new:
             async_add_entities(new)
 
@@ -201,13 +201,13 @@ class EbusdConnectedBinarySensor(BinarySensorEntity):
         return {"signal": self._signal, "running": self._running}
 
 
-class EbusdZoneFlagBinarySensor(BinarySensorEntity):
+class EbusdFlagBinarySensor(BinarySensorEntity):
     """An on/off value of a zone, such as whether a schedule time slot is active."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, hass: HomeAssistant, config: DiscoveredZoneFlag) -> None:
+    def __init__(self, hass: HomeAssistant, config: DiscoveredFlag) -> None:
         self.hass = hass
         self._config = config
         self._attr_translation_key = config.translation_key

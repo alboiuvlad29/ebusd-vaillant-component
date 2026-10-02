@@ -9,7 +9,7 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_mqtt_message,
 )
 
-from custom_components.ebusd_vaillant.const import DOMAIN
+from custom_components.ebusd_vaillant.const import CONF_HWC_BOOST_AS_MODE, DOMAIN
 
 MQTT_PREFIX = "ebusd"
 DEVICE = "ctlv2"
@@ -341,7 +341,12 @@ HWC_BOOST_MSGS: dict[str, dict] = {
 
 @pytest.fixture
 async def setup_boost_entry(hass, mqtt_mock):
-    entry = MockConfigEntry(domain=DOMAIN, data={"mqtt_prefix": MQTT_PREFIX})
+    # boost as an operation mode is the legacy behaviour since 1.11.0
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"mqtt_prefix": MQTT_PREFIX},
+        options={CONF_HWC_BOOST_AS_MODE: True},
+    )
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()

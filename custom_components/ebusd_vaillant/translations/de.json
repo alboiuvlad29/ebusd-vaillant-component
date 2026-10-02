@@ -89,6 +89,15 @@
       },
       "remote_room_humidity": {
         "name": "Fernbedienung {number} Raumluftfeuchte"
+      },
+      "hot_water_status": {
+        "name": "Warmwasserstatus"
+      },
+      "legionella_day": {
+        "name": "Legionellenschutz Tag"
+      },
+      "legionella_time": {
+        "name": "Legionellenschutz Uhrzeit"
       }
     },
     "binary_sensor": {
@@ -100,6 +109,14 @@
       },
       "time_slot_active": {
         "name": "Zeitfenster aktiv"
+      },
+      "reheating_active": {
+        "name": "Nachladen aktiv"
+      }
+    },
+    "button": {
+      "hot_water_boost_start": {
+        "name": "Boost starten"
       }
     }
   },
@@ -137,7 +154,8 @@
           "cooling": "Kühlung",
           "temperature_write": "Temperaturänderungen",
           "poll_priming": "Abfrageprioritäten",
-          "low_pressure_threshold": "Schwelle niedriger Druck (bar)"
+          "low_pressure_threshold": "Schwelle niedriger Druck (bar)",
+          "hot_water_boost_as_mode": "Boost als Warmwassermodus anzeigen (veraltet)"
         },
         "data_description": {
           "away_mode_duration": "Anzahl der Tage, die der Abwesenheitsmodus beim Aktivieren dauert (Standard: 7)",
@@ -147,7 +165,8 @@
           "cooling": "Ob Zonen Kühlung anbieten (Heiz-/Kühl-Zielbereich und Kühlmodus). Auto entscheidet anhand der Systemwerte, z. B. Hc1CoolingEnabled oder Kühlertrag. Ohne Kühlung hat jede Zone eine Zieltemperatur.",
           "temperature_write": "Was eine Änderung der Zieltemperatur schreibt. Smart: im Modus Manuell den festen Sollwert, im Modus Zeitgesteuert eine Schnellkorrektur. Immer Schnellkorrektur: Verhalten vor 1.1.0.",
           "poll_priming": "Welche Werte die Integration von ebusd abfragen lässt und wie oft. Wichtiges schnell: Modi, Sollwerte, Raum- und Warmwassertemperaturen, Boost- und Leistungswerte schnell (?1), alles andere langsam (?5). Alles schnell: alle Werte mit ?1. Aus: nur die eigene Abfrage von ebusd.",
-          "low_pressure_threshold": "Der Binärsensor Niedriger Druck schaltet sich unterhalb dieses Anlagendrucks ein (Standard: 1,5)"
+          "low_pressure_threshold": "Der Binärsensor Niedriger Druck schaltet sich unterhalb dieses Anlagendrucks ein (Standard: 1,5)",
+          "hot_water_boost_as_mode": "Boost wie vor 1.11.0 als vierten Modus am Warmwasserspeicher anzeigen. Boost liegt jetzt auf dem Boost-Schalter und -Knopf; diese Option wird in einer späteren Version entfernt."
         }
       }
     }

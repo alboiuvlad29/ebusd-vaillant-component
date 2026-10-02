@@ -89,6 +89,15 @@
       },
       "remote_room_humidity": {
         "name": "Mando {number} humedad ambiente"
+      },
+      "hot_water_status": {
+        "name": "Estado del ACS"
+      },
+      "legionella_day": {
+        "name": "Día de protección antilegionela"
+      },
+      "legionella_time": {
+        "name": "Hora de protección antilegionela"
       }
     },
     "binary_sensor": {
@@ -100,6 +109,14 @@
       },
       "time_slot_active": {
         "name": "Franja horaria activa"
+      },
+      "reheating_active": {
+        "name": "Recalentamiento activo"
+      }
+    },
+    "button": {
+      "hot_water_boost_start": {
+        "name": "Iniciar boost"
       }
     }
   },
@@ -137,7 +154,8 @@
           "cooling": "Refrigeración",
           "temperature_write": "Cambios de temperatura",
           "poll_priming": "Prioridades de sondeo",
-          "low_pressure_threshold": "Umbral de presión baja (bar)"
+          "low_pressure_threshold": "Umbral de presión baja (bar)",
+          "hot_water_boost_as_mode": "Mostrar boost como modo de ACS (heredado)"
         },
         "data_description": {
           "away_mode_duration": "Número de días que dura el modo ausente cuando se activa (por defecto: 7)",
@@ -147,7 +165,8 @@
           "cooling": "Si las zonas ofrecen refrigeración (rango calor/frío y modo frío). Auto decide según lo que informa el sistema, p. ej. Hc1CoolingEnabled o el rendimiento de refrigeración. Sin refrigeración cada zona tiene una temperatura objetivo.",
           "temperature_write": "Qué escribe un cambio de temperatura objetivo. Inteligente: el punto de consigna fijo en modo Manual, un veto rápido temporal en modo Programado. Siempre veto rápido: comportamiento anterior a 1.1.0.",
           "poll_priming": "Qué valores pide la integración a ebusd que sondee y con qué frecuencia. Esenciales rápido: modos, consignas, temperaturas de ambiente y ACS, boost y potencia rápido (?1), el resto despacio (?5). Todo rápido: todos los valores con ?1. Apagado: solo el sondeo propio de ebusd.",
-          "low_pressure_threshold": "El sensor binario Presión baja se activa por debajo de esta presión del sistema (predeterminado: 1,5)"
+          "low_pressure_threshold": "El sensor binario Presión baja se activa por debajo de esta presión del sistema (predeterminado: 1,5)",
+          "hot_water_boost_as_mode": "Mostrar Boost como cuarto modo del calentador, como antes de 1.11.0. El boost está ahora en el interruptor y el botón Boost; esta opción se eliminará en una versión posterior."
         }
       }
     }
