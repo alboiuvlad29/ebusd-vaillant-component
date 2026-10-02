@@ -122,6 +122,25 @@ With the default option `temperature_write: smart`:
 
 With `temperature_write: quick_veto`, every change starts a quick veto (behaviour before 1.1.0).
 
+### HVAC action
+
+The climate entity's action (Heating / Cooling / Idle / Defrosting / Off) comes from what
+the heat pump is doing, using the freshest signal available:
+
+| Order | Signal | Meaning |
+|---|---|---|
+| 1 | `hmu Status00.defrost` | Defrosting |
+| 2 | `hmu Status07.heatermain_b7_warmwater`, `hmu Status01.pumpstate` = `hwc` | Hot water: zones show Idle |
+| 3 | `hmu Status07.power` (compressor %) | above 0 = running, 0 = idle |
+| 4 | `hmu Status00.compressorstate` | running / idle |
+| 5 | `hmu Status01.pumpstate` | `on`/`overrun` = running, `off` = idle |
+| 6 | `RunDataStatuscode` | polled, may lag; used only when nothing above is available |
+
+"Running" means Cooling when the status code is a `cool_*` code, otherwise Heating. A
+zone shows Idle while its `Z{n}Status` (or `Hc{n}Status`) says it is not asking for
+heat. Only when none of these signals has been received does the action follow the
+selected mode (Manual shows Heating).
+
 ## Water heater
 
 A water heater entity is created when both `HwcOpMode` and `HwcTempDesired`
