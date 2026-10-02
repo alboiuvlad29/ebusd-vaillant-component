@@ -182,3 +182,18 @@ A pressure sensor entity is created when `WaterPressure` is present.
 | MQTT message | Field | Access | HA control / attribute |
 |---|---|---|---|
 | `WaterPressure` | `value.value` | read | Native value (unit: bar) |
+
+## Write protection
+
+The controller stores setpoints in EEPROM, which wears with every write. Setpoint writes
+(zone manual and cooling setpoints, quick veto temperature, hot water temperature, flow
+temperature limits, minimum cooling temperature) therefore go through a guard, per topic:
+
+- the first change is written immediately;
+- further changes are combined, and only the last one is written once nothing changed for
+  1.5 s and at least 10 s after the previous write;
+- a value equal to the current one is not written (except the quick veto temperature,
+  because writing it starts the quick veto).
+
+Mode, boost and away writes are sent immediately. All writes are logged at debug level
+(`custom_components.ebusd_vaillant.writes`).

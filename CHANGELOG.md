@@ -2,6 +2,13 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.8.0
+
+- Write protection for setpoints (the controller stores them in EEPROM): the first change
+  is written immediately, slider bursts are combined into one final write (1.5 s quiet,
+  at most one write per topic every 10 s), and unchanged values are not written. Mode,
+  boost and away writes are not delayed. Writes are logged at debug level.
+
 ## 1.7.0
 
 - New **Operating mode** sensor on the heat pump (heating / cooling / hot water / defrost /
