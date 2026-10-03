@@ -9,9 +9,9 @@ Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream 
   subset. It now publishes each slot number to `.../SilentTimer_<Day>/get` (slots 0 to
   `slotcount - 1`, one per second, at startup and hourly) and stays unknown until all
   slots of the day are known.
-- Fix: the Release workflow lacked `contents: write`, so no `ebusd_vaillant.zip` was attached
-  and HACS could not install the release. The workflow now has the permission and
-  publishes the release with the zip.
+- HACS install: the release workflow's token lacks `contents: write`, so no
+  `ebusd_vaillant.zip` was attached to 1.14.0. The zip is attached to 1.14.0 and 1.14.1
+  by hand; the workflow permission fix follows once the token may change workflow files.
 - `FaultHistory0` is optional (it shares its ID with `LastError` and is gone from the local
   definitions); docs updated.
 - Entity IDs depend on the device areas in your Home Assistant (for example
