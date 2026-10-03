@@ -412,11 +412,13 @@ class EbusdQuickVetoSwitch(_FollowsDiscovery):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         qv = self._config.quick_veto_temp
+        qd = self._config.quick_veto_duration
         if qv and qv.write_topic:
             await self._publish(qv.write_topic, str(self._quick_veto_temp))
-        qd = self._config.quick_veto_duration
         if qd and qd.write_topic:
             await self._publish(qd.write_topic, str(self._quick_veto_duration))
+        else:
+            return  # nothing started, so nothing to show
         # Show it on right away; the next SFMode / end date update confirms or corrects it.
         if self._config.sf_mode is not None:
             self._sf_mode = "veto"

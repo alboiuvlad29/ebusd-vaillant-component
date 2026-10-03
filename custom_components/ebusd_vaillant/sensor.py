@@ -96,7 +96,7 @@ async def async_setup_entry(
                 if e.key in outdoor:
                     hass.async_create_task(outdoor[e.key].async_update_config(e))
                     continue
-                outdoor[e.key] = EbusdOutdoorTempSensor(hass, e)
+                outdoor[e.key] = EbusdOutdoorTempSensor(hass, e, coordinator)
                 new.append(outdoor[e.key])
             elif (
                 isinstance(e, DiscoveredControl)
@@ -207,9 +207,12 @@ class EbusdOutdoorTempSensor(SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "°C"
 
-    def __init__(self, hass: HomeAssistant, config: DiscoveredOutdoorTemp) -> None:
+    def __init__(
+        self, hass: HomeAssistant, config: DiscoveredOutdoorTemp, coordinator: EbusdCoordinator
+    ) -> None:
         self.hass = hass
         self._config = config
+        self._coordinator = coordinator
         self._attr_unique_id = f"ebusd_outside_temperature_{config.key}"
         self._attr_device_info = build_device_info(config)
         self._attr_native_value: float | None = None
@@ -237,6 +240,16 @@ class EbusdOutdoorTempSensor(SensorEntity):
             self._subscribed[role] = await mqtt.async_subscribe(
                 self.hass, cfg.read_topic, self._handler(role, cfg.field)
             )
+            # the value that announced the topic arrived before this subscription
+            try:
+                seed = float(self._coordinator.get_current_value(cfg))
+            except TypeError, ValueError:
+                continue
+            if role == "broadcast":
+                self._broadcast, self._broadcast_at = seed, dt_util.utcnow()
+            else:
+                self._controller = seed
+            self._attr_native_value = self._compute()
 
     def _handler(self, role: str, field: str) -> Any:
         @callback
