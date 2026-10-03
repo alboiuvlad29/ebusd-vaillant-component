@@ -18,6 +18,7 @@ Configuration options available for the ebusd Vaillant integration.
 | `zones_with_temp_only` | Only create climate entities for zones that report a current temperature | `on` |
 | `cooling` | Whether zones offer cooling. `auto` decides from what the system reports (`Hc{n}CoolingEnabled`, `ActiveCoolingEnabled`, a cooling yield above 0, `SetMode.releasecooling`, a `cool_*` status code; a cooling yield of exactly 0 means no cooling). Without cooling, a zone has one target temperature and no `cool` mode. With no information at all, zones keep the heat/cool range | `auto` |
 | `temperature_write` | What changing a zone's target temperature writes. `smart`: the permanent setpoint (`Z{n}ManualTemp`/`Z{n}DayTemp`) in Manual mode, a quick veto in Time controlled mode. `quick_veto`: always a quick veto (behaviour before 1.1.0) | `smart` |
+| `allow_installer_settings` | Make the hot water installer values (cylinder charging hysteresis and offset, maximum charging time, anti-cycling time, eco parameters) writable. Off: they are read-only diagnostic sensors. Wrong values can stop hot water production | `off` |
 
 Saving the options reloads the integration. Entity IDs, names, areas and other customizations are kept.
 

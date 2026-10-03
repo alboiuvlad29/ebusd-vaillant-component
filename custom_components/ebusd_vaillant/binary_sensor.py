@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.components import mqtt
@@ -14,6 +15,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_LOW_PRESSURE,
@@ -24,7 +27,14 @@ from .const import (
 )
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
-from .discovery import DiscoveredFlag, DiscoveredPressureMonitor, TopicConfig, _get
+from .discovery import (
+    DiscoveredFlag,
+    DiscoveredNoiseSchedule,
+    DiscoveredPressureMonitor,
+    TopicConfig,
+    _get,
+)
+from .noise import NoiseSchedule
 
 _TRUE = frozenset({"1", "on", "yes", "true"})
 _FALSE = frozenset({"0", "off", "no", "false"})
@@ -61,6 +71,7 @@ async def async_setup_entry(
     async_add_entities([EbusdConnectedBinarySensor(hass, prefix)])
     seen: set[str] = set()
     monitors: dict[str, EbusdLowPressureBinarySensor] = {}
+    noise: dict[str, EbusdNoiseReductionBinarySensor] = {}
 
     def _on_discover(entities: list) -> None:
         new = []
@@ -71,6 +82,12 @@ async def async_setup_entry(
                     continue
                 monitors[e.key] = EbusdLowPressureBinarySensor(hass, e, threshold)
                 new.append(monitors[e.key])
+            elif isinstance(e, DiscoveredNoiseSchedule):
+                if e.key in noise:
+                    hass.async_create_task(noise[e.key].async_update_config(e))
+                    continue
+                noise[e.key] = EbusdNoiseReductionBinarySensor(hass, e)
+                new.append(noise[e.key])
             elif isinstance(e, DiscoveredFlag) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdFlagBinarySensor(hass, e))
@@ -257,3 +274,83 @@ class EbusdFlagBinarySensor(BinarySensorEntity):
     async def async_will_remove_from_hass(self) -> None:
         if self._unsubscribe:
             self._unsubscribe()
+
+
+class EbusdNoiseReductionBinarySensor(BinarySensorEntity):
+    """On while a noise reduction period of the schedule (SilentTimer) is running.
+
+    The controller has no separate on/off: noise reduction is active whenever the
+    current time falls into one of the day's periods.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "noise_reduction_active"
+    _attr_icon = "mdi:volume-off"
+
+    def __init__(self, hass: HomeAssistant, config: DiscoveredNoiseSchedule) -> None:
+        self.hass = hass
+        self._config = config
+        self._attr_unique_id = f"ebusd_noise_reduction_{config.key}"
+        self._attr_device_info = build_device_info(config)
+        self._schedule = NoiseSchedule()
+        self._subscribed: dict[str, Any] = {}
+        self._cancel_tick: Any = None
+
+    async def async_added_to_hass(self) -> None:
+        await self._bind()
+        # the state depends on the clock as well: re-evaluate every minute
+        self._cancel_tick = async_track_time_interval(
+            self.hass, lambda _now: self.async_write_ha_state(), timedelta(minutes=1)
+        )
+
+    async def async_update_config(self, config: DiscoveredNoiseSchedule) -> None:
+        self._config = config
+        if self.platform is not None:
+            await self._bind()
+            self.async_write_ha_state()
+
+    async def _bind(self) -> None:
+        for cfg in self._config.topics:
+            if cfg.read_topic in self._subscribed:
+                continue
+            self._subscribed[cfg.read_topic] = await mqtt.async_subscribe(
+                self.hass, cfg.read_topic, self._handler(cfg.read_topic.rsplit("/", 1)[-1])
+            )
+            for payload in (self._peek(cfg),):
+                if payload is not None:
+                    self._schedule.update(cfg.read_topic.rsplit("/", 1)[-1], payload)
+
+    def _peek(self, cfg: TopicConfig) -> Any:
+        coordinator = self.hass.data.get(DOMAIN, {})
+        for coord in coordinator.values():
+            if isinstance(coord, EbusdCoordinator):
+                return coord.get_current_value(cfg)
+        return None
+
+    def _handler(self, message: str) -> Any:
+        @callback
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
+            self._schedule.update(message, _payload(msg.payload))
+            self.async_write_ha_state()
+
+        return _handle
+
+    @property
+    def available(self) -> bool:
+        return self._schedule.known
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._schedule.active_at(dt_util.now())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"schedule": self._schedule.as_dict()}
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._cancel_tick:
+            self._cancel_tick()
+        for unsub in self._subscribed.values():
+            unsub()
+        self._subscribed.clear()

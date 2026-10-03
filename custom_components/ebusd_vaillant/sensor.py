@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.components import mqtt
@@ -13,10 +15,11 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfEnergy
+from homeassistant.const import EntityCategory, UnitOfEnergy
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .activity import (
@@ -28,17 +31,32 @@ from .activity import (
     ACTIVITY_IDLE,
     compute_activity,
 )
-from .const import DOMAIN
+from .const import (
+    CONF_ALLOW_INSTALLER,
+    DEFAULT_ALLOW_INSTALLER,
+    DOMAIN,
+    FAULT_EVENT,
+)
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
 from .discovery import (
+    DiscoveredControl,
     DiscoveredEffectiveTarget,
     DiscoveredErrorSensor,
+    DiscoveredFaultHistory,
     DiscoveredOperatingMode,
+    DiscoveredOutdoorTemp,
     DiscoveredSensor,
     DiscoveredTextSensor,
+    TopicConfig,
     _get,
 )
+from .faults import FaultEntry, parse_fault_entry
+
+# Pause between the FaultHistory requests, so the bus is not flooded
+FAULT_REQUEST_INTERVAL = 1.0
+# The broadcast outside temperature is trusted for this long before the controller value is used
+OUTDOOR_BROADCAST_MAX_AGE = timedelta(minutes=15)
 
 
 async def async_setup_entry(
@@ -50,6 +68,8 @@ async def async_setup_entry(
     seen: set[str] = set()
     followers: dict[str, list[_ActivityFollower]] = {}
     targets: dict[str, EbusdEffectiveTargetSensor] = {}
+    outdoor: dict[str, EbusdOutdoorTempSensor] = {}
+    allow_installer = entry.options.get(CONF_ALLOW_INSTALLER, DEFAULT_ALLOW_INSTALLER)
 
     def _on_discover(entities: list) -> None:
         new = []
@@ -69,6 +89,24 @@ async def async_setup_entry(
             elif isinstance(e, DiscoveredErrorSensor) and e.key not in seen:
                 seen.add(e.key)
                 new.append(EbusdErrorSensor(hass, e))
+            elif isinstance(e, DiscoveredFaultHistory) and e.key not in seen:
+                seen.add(e.key)
+                new.append(EbusdLastFaultSensor(hass, e, coordinator))
+            elif isinstance(e, DiscoveredOutdoorTemp):
+                if e.key in outdoor:
+                    hass.async_create_task(outdoor[e.key].async_update_config(e))
+                    continue
+                outdoor[e.key] = EbusdOutdoorTempSensor(hass, e)
+                new.append(outdoor[e.key])
+            elif (
+                isinstance(e, DiscoveredControl)
+                and e.kind == "number"
+                and e.installer
+                and not allow_installer
+                and e.key not in seen
+            ):
+                seen.add(e.key)
+                new.append(EbusdInstallerValueSensor(hass, e))
             elif isinstance(e, DiscoveredOperatingMode):
                 if e.key in followers:
                     for entity in followers[e.key]:
@@ -137,6 +175,101 @@ class EbusdSensor(_EbusdNumericSensor):
         self._attr_state_class = SensorStateClass(config.state_class)
         self._attr_native_unit_of_measurement = config.unit
         self._attr_device_info = build_device_info(config)
+        if config.entity_category:
+            self._attr_entity_category = EntityCategory(config.entity_category)
+        self._attr_entity_registry_enabled_default = config.enabled_default
+
+
+class EbusdInstallerValueSensor(_EbusdNumericSensor):
+    """An installer value shown read-only (writable only with "Allow installer settings")."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hass: HomeAssistant, config: DiscoveredControl) -> None:
+        super().__init__(hass, config.topic.read_topic, config.topic.field)
+        self._attr_translation_key = config.translation_key
+        self._attr_unique_id = f"ebusd_installer_{config.key}"
+        self._attr_native_unit_of_measurement = config.unit
+        self._attr_device_class = (
+            SensorDeviceClass(config.device_class) if config.device_class else None
+        )
+        self._attr_device_info = build_device_info(config)
+
+
+class EbusdOutdoorTempSensor(SensorEntity):
+    """Outside temperature: the passive broadcast (about every minute), else the controller."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "outside_temperature"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "°C"
+
+    def __init__(self, hass: HomeAssistant, config: DiscoveredOutdoorTemp) -> None:
+        self.hass = hass
+        self._config = config
+        self._attr_unique_id = f"ebusd_outside_temperature_{config.key}"
+        self._attr_device_info = build_device_info(config)
+        self._attr_native_value: float | None = None
+        self._broadcast: float | None = None
+        self._broadcast_at = None
+        self._controller: float | None = None
+        self._subscribed: dict[str, Any] = {}
+
+    async def async_added_to_hass(self) -> None:
+        await self._bind()
+
+    async def async_update_config(self, config: DiscoveredOutdoorTemp) -> None:
+        self._config = config
+        if self.platform is not None:
+            await self._bind()
+            self.async_write_ha_state()
+
+    async def _bind(self) -> None:
+        for role, cfg in (
+            ("broadcast", self._config.broadcast),
+            ("controller", self._config.controller),
+        ):
+            if cfg is None or role in self._subscribed:
+                continue
+            self._subscribed[role] = await mqtt.async_subscribe(
+                self.hass, cfg.read_topic, self._handler(role, cfg.field)
+            )
+
+    def _handler(self, role: str, field: str) -> Any:
+        @callback
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except json.JSONDecodeError, ValueError:
+                payload = msg.payload
+            try:
+                value = float(_get(payload, field))
+            except TypeError, ValueError:
+                return
+            if role == "broadcast":
+                self._broadcast, self._broadcast_at = value, dt_util.utcnow()
+            else:
+                self._controller = value
+            self._attr_native_value = self._compute()
+            self.async_write_ha_state()
+
+        return _handle
+
+    def _compute(self) -> float | None:
+        fresh = (
+            self._broadcast is not None
+            and self._broadcast_at is not None
+            and dt_util.utcnow() - self._broadcast_at < OUTDOOR_BROADCAST_MAX_AGE
+        )
+        return self._broadcast if fresh else self._controller
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in self._subscribed.values():
+            unsub()
+        self._subscribed.clear()
 
 
 def error_codes(payload: Any) -> list[str]:
@@ -159,6 +292,7 @@ class EbusdErrorSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_translation_key = "current_error"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = False
     _attr_icon = "mdi:alert-circle-outline"
 
@@ -425,6 +559,8 @@ class EbusdTextSensor(SensorEntity):
         self._attr_translation_key = config.translation_key
         self._attr_unique_id = f"ebusd_text_{config.key}"
         self._attr_device_info = build_device_info(config)
+        if config.entity_category:
+            self._attr_entity_category = EntityCategory(config.entity_category)
         self._attr_native_value: str | None = None
         self._unsubscribe: Any = None
 
@@ -551,3 +687,182 @@ class EbusdEffectiveTargetSensor(SensorEntity):
         for _topic, unsub in self._subscriptions.values():
             unsub()
         self._subscriptions.clear()
+
+
+class EbusdLastFaultSensor(SensorEntity):
+    """Most recent heat pump fault (F.xx) and the stored fault history.
+
+    LastError is polled by ebusd; FaultHistory0..9 only exist once requested, so the
+    sensor asks for them at startup and whenever LastError changes. A fault newer than
+    the last one seen (kept across restarts) fires the ebusd_vaillant_fault event and
+    raises a Repairs issue.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "last_fault"
+    _attr_icon = "mdi:alert-octagon-outline"
+
+    def __init__(
+        self, hass: HomeAssistant, config: DiscoveredFaultHistory, coordinator: EbusdCoordinator
+    ) -> None:
+        self.hass = hass
+        self._config = config
+        self._coordinator = coordinator
+        self._attr_unique_id = f"ebusd_last_fault_{config.key}"
+        self._attr_device_info = build_device_info(config)
+        self._store: Store = Store(hass, 1, f"{DOMAIN}.fault_{config.key}")
+        self._seen: Any = None  # timestamp of the newest fault already announced
+        self._newest: FaultEntry | None = None  # newest entry reported by LastError
+        self._slots: dict[int, FaultEntry] = {}
+        self._last_raw: Any = None
+        self._first = True
+        self._request_task: asyncio.Task | None = None
+        self._unsubscribe: list[Any] = []
+
+    async def async_added_to_hass(self) -> None:
+        if (data := await self._store.async_load()) and data.get("last_seen"):
+            self._seen = dt_util.parse_datetime(data["last_seen"])
+        for index, cfg in enumerate(self._config.history):
+            self._seed_slot(index, cfg)
+            self._unsubscribe.append(
+                await mqtt.async_subscribe(self.hass, cfg.read_topic, self._slot_handler(index))
+            )
+        cfg = self._config.last_error
+        self._unsubscribe.append(
+            await mqtt.async_subscribe(self.hass, cfg.read_topic, self._last_error_handler())
+        )
+        if (payload := self._coordinator.get_current_value(cfg)) is not None:
+            self._on_last_error(payload)
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in self._unsubscribe:
+            unsub()
+        self._unsubscribe.clear()
+        if self._request_task:
+            self._request_task.cancel()
+
+    def _seed_slot(self, index: int, cfg: TopicConfig) -> None:
+        if (payload := self._coordinator.get_current_value(cfg)) is not None:
+            self._set_slot(index, payload)
+
+    def _slot_handler(self, index: int) -> Any:
+        @callback
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except json.JSONDecodeError, ValueError:
+                payload = None
+            self._set_slot(index, payload)
+            self._announce_if_new()
+            self.async_write_ha_state()
+
+        return _handle
+
+    def _last_error_handler(self) -> Any:
+        @callback
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except json.JSONDecodeError, ValueError:
+                payload = None
+            self._on_last_error(payload)
+            self.async_write_ha_state()
+
+        return _handle
+
+    @callback
+    def _set_slot(self, index: int, payload: Any) -> None:
+        if (entry := parse_fault_entry(payload)) is None:
+            self._slots.pop(index, None)
+        else:
+            self._slots[index] = entry
+
+    @callback
+    def _on_last_error(self, payload: Any) -> None:
+        changed = self._first or payload != self._last_raw
+        self._last_raw = payload
+        self._newest = parse_fault_entry(payload)
+        self._announce_if_new()
+        if changed:
+            self._first = False
+            self._request_history()
+
+    def _request_history(self) -> None:
+        if self._request_task:
+            self._request_task.cancel()
+        self._request_task = self.hass.async_create_background_task(
+            self._request_slots(), "ebusd fault history request"
+        )
+
+    async def _request_slots(self) -> None:
+        for index, cfg in enumerate(self._config.history):
+            if index:
+                await asyncio.sleep(FAULT_REQUEST_INTERVAL)
+            await mqtt.async_publish(self.hass, f"{cfg.read_topic}/get", "")
+
+    def _entries(self) -> list[FaultEntry]:
+        """All known faults, newest first, without duplicates."""
+        found = {(e.timestamp, e.code): e for e in self._slots.values()}
+        if self._newest is not None:
+            found[(self._newest.timestamp, self._newest.code)] = self._newest
+        return sorted(found.values(), key=lambda e: e.timestamp, reverse=True)
+
+    @callback
+    def _announce_if_new(self) -> None:
+        entries = self._entries()
+        if not entries:
+            return
+        latest = entries[0]
+        if self._seen is None:
+            # first run: take over what is already there without announcing it
+            self._remember(latest)
+            return
+        if latest.timestamp <= self._seen:
+            return
+        self._remember(latest)
+        self.hass.bus.async_fire(
+            FAULT_EVENT,
+            {
+                "code": latest.label,
+                "meaning": latest.meaning,
+                "timestamp": latest.timestamp.isoformat(),
+                "device": self._config.device_name,
+            },
+        )
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            f"heat_pump_fault_{self._config.key}_{int(latest.timestamp.timestamp())}",
+            is_fixable=False,
+            is_persistent=True,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="heat_pump_fault",
+            translation_placeholders={
+                "device": self._config.device_name,
+                "code": latest.label,
+                "meaning": latest.meaning,
+                "timestamp": dt_util.as_local(latest.timestamp).strftime("%d.%m.%Y %H:%M"),
+            },
+        )
+
+    def _remember(self, entry: FaultEntry) -> None:
+        self._seen = entry.timestamp
+        self._store.async_delay_save(lambda: {"last_seen": entry.timestamp.isoformat()}, 0)
+
+    @property
+    def native_value(self) -> str:
+        entries = self._entries()
+        return entries[0].label if entries else "none"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        entries = self._entries()
+        attrs: dict[str, Any] = {"history": [e.as_dict() for e in entries]}
+        if entries:
+            attrs.update(
+                timestamp=entries[0].timestamp.isoformat(),
+                status=entries[0].status,
+                meaning=entries[0].meaning,
+            )
+        return attrs

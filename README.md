@@ -11,7 +11,8 @@ controlled over [ebusd](https://github.com/john30/ebusd) via MQTT.
 
 - **Auto-discovery**  -  no manual entity configuration; entities appear as ebusd publishes topics
 - **Heating zones (Z1-Z4)**  -  HVAC mode, temperature control, holiday schedules, quick veto (boost)
-- **Hot water (HWC)**  -  operation mode, target/current temperature
+- **Hot water (HWC)**  -  operation mode, target/current temperature, Comfort/Eco preset with the effective target
+- **Heat pump**  -  live values, fault history with notification on new faults, noise reduction, Green iQ, outside temperature
 - **Water pressure sensor**  -  live pressure reading in bar
 - **Preset modes**  -  Boost (quick veto) and Away (holiday period)
 

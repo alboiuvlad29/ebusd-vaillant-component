@@ -183,6 +183,57 @@ additional `boost` operation mode is added to the water heater's operation list:
 The underlying `HwcOpMode` is not changed when boost is activated; the water
 heater continues to show its normal operation mode once boost is turned off.
 
+### Hot water preset (Comfort / Eco)
+
+Needs the local ebusd definitions with `HwcPreset` and `HwcEcoTempDesired` (not in the
+upstream files yet). Without them nothing changes.
+
+| MQTT message | Access | HA control |
+|---|---|---|
+| `HwcPreset` (`comfort` / `eco`) | read/write | Select **Hot water preset** |
+| `HwcEcoTempDesired` | read/write | Number **Hot water eco temperature** |
+| `HwcEcoChargeHyst`, `HwcEcoMinTemp13h`, `HwcEcoMinTemp24h` | read, write with installer option | Installer values |
+
+`HwcTempDesired` always holds the Comfort temperature. While the preset is `eco`, the
+controller heats to `HwcEcoTempDesired`, so the water heater shows and writes that value
+as its target temperature. Both raw values are attributes (`comfort_temperature`,
+`eco_temperature`).
+
+### Installer values
+
+`CylinderChargeHyst`, `CylinderChargeOffset`, `MaxCylinderChargeTime`, `HwcLockTime` and
+the eco parameters above are read-only diagnostic sensors. With the option **Allow
+installer settings to be changed** they become number entities that write to the controller.
+
+## Heat pump values and faults
+
+| MQTT message | Entity |
+|---|---|
+| `RunDataCompressorSpeed`, `RunDataHighPressure`, `RunDataOverheatingActualValue`, `RunDataFan1Speed`, `RunDataEEVPositionAbs`, `RunDataBuildingCircuitFlow`, `RunDataHeatOutput`, `CurrentCompressorUtil` | Sensors on the heat pump device |
+| `HwcMode`, `CompHysteresisHeating`, `CompStartHeatingFrom`, `MaxRemainingDeltaP`, `BuildingCircuitPumpOutputHeating/Hwc`, `NoiseReductionLevel` | Diagnostic sensors (disabled by default except the noise reduction level) |
+| `LastError`, `FaultHistory0` to `FaultHistory9` | Sensor **Last fault** (`F.022`) with the history as attribute |
+| `Currenterror` / `CurrentError` | Diagnostic sensor, `none` when empty (disabled by default) |
+
+`LastError` is polled by ebusd. `FaultHistory0` to `FaultHistory9` only exist once
+requested, so the integration publishes an empty payload to `.../FaultHistory<n>/get` (one
+per second) at startup and whenever `LastError` changes. Empty and undecodable slots are
+skipped. The last fault seen is kept across restarts. A newer fault fires the
+`ebusd_vaillant_fault` event (`code`, `meaning`, `timestamp`, `device`) and creates a
+Repairs issue.
+
+## System device
+
+| MQTT message | Entity |
+|---|---|
+| `GreenIQ` | Switch **Green iQ** (config) |
+| `broadcast/outsidetemp`, else `OutsideTemp` | Sensor **Outside temperature**; also the `outdoor_temperature` attribute of the zones |
+| `OutsideTempAvg` | Diagnostic sensor **Outside temperature average** |
+| `SilentTimer_<Day>` | Binary sensor **Noise reduction active** (schedule and local time) |
+
+The broadcast is used while it is less than 15 minutes old, then the controller value.
+Noise reduction has no on/off of its own: it is active whenever a time period of the
+schedule covers the current time.
+
 ## Pressure sensor
 
 A pressure sensor entity is created when `WaterPressure` is present.
