@@ -2,6 +2,72 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.14.0
+
+New features. Everything below needs ebusd messages that are optional: when a topic never
+appears, no entity is created and nothing is logged. Several messages are not in the
+upstream ebusd definitions yet (see `docs/mapping.md`); users on upstream definitions see
+no change.
+
+- **Hot water preset:** select **Hot water preset** (Comfort / Eco, `HwcPreset`) and number
+  **Hot water eco temperature** (`HwcEcoTempDesired`). The **water heater target is the
+  effective target**: the eco temperature while the preset is Eco, `HwcTempDesired` while
+  Comfort, and `set_temperature` writes to the one in use. Both raw values are attributes.
+- **Heat pump fault history:** sensor **Last fault** (`F.022`, with timestamp, meaning and the
+  whole stored history as attributes) from `LastError` and `FaultHistory0` to `9`
+  (requested one per second at startup and when `LastError` changes). Known aroTHERM codes
+  have a meaning, others show "Unknown fault". A new fault fires the `ebusd_vaillant_fault`
+  event and creates a Repairs issue; the last seen fault is stored, so restarts do not repeat
+  it. The current error sensors are diagnostic entities now.
+- **Green iQ** switch (config) on the system device.
+- **Outside temperature** sensor on the system device (passive `broadcast/outsidetemp`,
+  controller `OutsideTemp` as fallback), **Outside temperature average** (diagnostic) and an
+  `outdoor_temperature` attribute on the zones.
+- **Noise reduction:** binary sensor **Noise reduction active** from the `SilentTimer_<Day>`
+  schedule and local time, sensor **Noise reduction level**.
+- **Heat pump sensors:** compressor speed, high pressure, superheat, fan speed, EEV
+  position, building circuit flow, heat output, compressor utilisation; diagnostic: charging
+  mode, compressor hysteresis, start heating from, remaining pressure difference, pump outputs.
+- **Hot water installer values** (cylinder charging hysteresis and offset, maximum charging
+  time, anti-cycling time, eco parameters): read-only diagnostic sensors, number entities
+  with the new option **Allow installer settings to be changed**.
+- **Heating boost switch** turns on immediately instead of waiting for the next poll.
+- `MultiInputSetting` is not read by the integration. The register is UIN (2 bytes): the
+  upstream definition (UCH plus IGN:3) fails to decode, use the corrected line from the local
+  definitions.
+- Not included yet: condensation temperature (needs the gauge or absolute pressure check
+  against T.0.86), instantaneous COP, editing the noise reduction schedule.
+
+### For the HA side to verify
+
+After installing v1.14.0 and restarting Home Assistant:
+
+1. **Hot water preset:** `select.vaillant_hot_water_hot_water_preset` exists. Switch it to
+   Eco: the water heater target changes to the eco temperature (40 °C) and the attributes show
+   `comfort_temperature: 50`, `eco_temperature: 40`. Set a new target in Eco and check that
+   `ebusd/ctlv3/HwcEcoTempDesired/set` is written, not `HwcTempDesired/set`. Switch back
+   to Comfort: the target returns to 50.
+2. **Fault history:** `sensor.vaillant_heat_pump_last_fault` shows `F.022` with 7 entries in
+   `history` (18.09.2026 18:41 newest). The ebusd log shows `FaultHistory0` to `9` read
+   requests about one second apart. Restart HA: no `ebusd_vaillant_fault` event and no new
+   Repairs issue for the old faults. The `Current error` sensors (diagnostic) are disabled by
+   default: enable them to check `none`. After a new fault, check that the history shifts by
+   one (an empty `/get` may return ebusd's cached entries).
+3. **Green iQ:** `switch.vaillant_green_iq` follows the panel (Menu, Control, Green iQ) and
+   writes `on`/`off` to `ebusd/ctlv3/GreenIQ/set`.
+4. **Outside temperature:** `sensor.vaillant_outside_temperature` updates about every minute
+   (broadcast). The zones have an `outdoor_temperature` attribute.
+5. **Noise reduction:** `binary_sensor.vaillant_noise_reduction_active` is on during the
+   periods (00:00 to 08:00, 14:00 to 16:00, 18:30 to 24:00). This depends on how ebusd
+   publishes the slots of `SilentTimer_<Day>`: check the `schedule` attribute shows all
+   three periods. The sensor stays unknown until all slots of the day (`slotcount`) have been
+   seen; if it never leaves unknown, report the MQTT payloads of `SilentTimer_Monday`.
+6. **Heat pump sensors** appear on the heat pump device with plausible values (compare with the
+   service menu: T.0.93, T.0.63, T.0.88, T.0.17).
+7. **Installer values:** read-only sensors by default (cylinder hysteresis 10 K, charging time
+   90 min, anti-cycling 30 min). Enabling the option turns them into numbers.
+8. Turn on the **Heating boost** switch: it shows on at once.
+
 ## 1.13.3
 
 - Fix: the **Heating boost** switch could not cancel a boost on the newer definitions

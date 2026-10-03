@@ -95,7 +95,7 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         self._attr_name = None  # primary entity of the Hot Water device; device name is the label
         self._attr_unique_id = f"ebusd_water_heater_{config.key}"
         self._attr_device_info = build_device_info(config)
-        self._attr_min_temp = config.min_temp
+        self._attr_min_temp = self._min_temp()
         self._attr_max_temp = config.max_temp
         self._attr_target_temperature_step = config.temp_step
         self._mode_vocab = config.mode_vocab
@@ -109,6 +109,10 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         self._holiday_end: str | None = None
         self._sf_mode: str | None = None
         self._raw_operation: str | None = None
+        # HwcPreset: while "eco", the controller heats to the eco temperature
+        self._preset: str | None = None
+        self._comfort_temp: float | None = None
+        self._eco_temp: float | None = None
         self._unsubscribe: list[Any] = []
 
         features = (
@@ -130,6 +134,10 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             await self._subscribe(self._config.holiday_end, self._handle_holiday_end)
         if self._config.sf_mode:
             await self._subscribe(self._config.sf_mode, self._handle_sf_mode)
+        if self._config.preset:
+            await self._subscribe(self._config.preset, self._handle_preset)
+        if self._config.eco_temperature:
+            await self._subscribe(self._config.eco_temperature, self._handle_eco_temp)
         self._seed_from_coordinator()
         self.async_write_ha_state()
         register_entity(self.hass, self)
@@ -175,11 +183,28 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
             await self._subscribe(config.sf_mode, self._handle_sf_mode)
             if (v := self._coordinator.get_current_value(config.sf_mode)) is not None:
                 self._handle_sf_mode(v)
+        if config.preset and not self._config.preset:
+            await self._subscribe(config.preset, self._handle_preset)
+            if (v := self._coordinator.get_current_value(config.preset)) is not None:
+                self._handle_preset(v)
+        if config.eco_temperature and not self._config.eco_temperature:
+            await self._subscribe(config.eco_temperature, self._handle_eco_temp)
+            if (v := self._coordinator.get_current_value(config.eco_temperature)) is not None:
+                self._handle_eco_temp(v)
         self._config = config
+        self._attr_min_temp = self._min_temp()
         if not self._mode_vocab_observed:
             self._set_mode_vocab(config.mode_vocab)
         self._update_operation_list()
         self.async_write_ha_state()
+
+    def _min_temp(self) -> float:
+        # the eco temperature can be set lower than the comfort range
+        return (
+            min(self._config.min_temp, 20.0)
+            if self._config.eco_temperature
+            else self._config.min_temp
+        )
 
     @callback
     def _update_operation_list(self) -> None:
@@ -215,6 +240,12 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         if self._config.sf_mode:
             if (v := self._coordinator.get_current_value(self._config.sf_mode)) is not None:
                 self._handle_sf_mode(v)
+        if self._config.preset:
+            if (v := self._coordinator.get_current_value(self._config.preset)) is not None:
+                self._handle_preset(v)
+        if self._config.eco_temperature:
+            if (v := self._coordinator.get_current_value(self._config.eco_temperature)) is not None:
+                self._handle_eco_temp(v)
 
     async def _subscribe(self, topic_cfg: TopicConfig, handler: Any) -> None:
         @callback
@@ -242,9 +273,36 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
     @callback
     def _handle_target_temp(self, value: Any) -> None:
         try:
-            self._attr_target_temperature = float(value)
+            self._comfort_temp = float(value)
         except (TypeError, ValueError):  # fmt: skip
-            pass
+            return
+        self._update_target()
+
+    @callback
+    def _handle_eco_temp(self, value: Any) -> None:
+        try:
+            self._eco_temp = float(value)
+        except (TypeError, ValueError):  # fmt: skip
+            return
+        self._update_target()
+
+    @callback
+    def _handle_preset(self, value: Any) -> None:
+        text = {"0": "comfort", "1": "eco"}.get(str(value), str(value)).lower()
+        self._preset = text
+        self._update_target()
+
+    @property
+    def _eco_active(self) -> bool:
+        return self._preset == "eco" and self._config.eco_temperature is not None
+
+    @callback
+    def _update_target(self) -> None:
+        """The target is what the controller heats to: the eco temperature while in eco."""
+        if self._eco_active and self._eco_temp is not None:
+            self._attr_target_temperature = self._eco_temp
+        else:
+            self._attr_target_temperature = self._comfort_temp
 
     @callback
     def _handle_current_temp(self, value: Any) -> None:
@@ -274,7 +332,15 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {"boost_active": self._sf_mode == "load"} if self._config.sf_mode else {}
+        attrs: dict[str, Any] = {}
+        if self._config.sf_mode:
+            attrs["boost_active"] = self._sf_mode == "load"
+        if self._config.preset:
+            attrs["preset"] = self._preset
+        if self._config.preset or self._config.eco_temperature:
+            attrs["comfort_temperature"] = self._comfort_temp
+            attrs["eco_temperature"] = self._eco_temp
+        return attrs
 
     @property
     def is_away_mode_on(self) -> bool | None:
@@ -307,7 +373,11 @@ class EbusdWaterHeaterEntity(WaterHeaterEntity):
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
-        await self._coordinator.async_write_setpoint(self._config.target_temperature, str(temp))
+        # Write to the setpoint that is in use: eco temperature while the preset is eco
+        target = (
+            self._config.eco_temperature if self._eco_active else self._config.target_temperature
+        )
+        await self._coordinator.async_write_setpoint(target, str(temp))
 
     async def async_set_operation_mode(self, operation_mode: str) -> None:
         if operation_mode == "boost":

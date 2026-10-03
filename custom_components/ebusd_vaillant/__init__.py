@@ -33,6 +33,7 @@ PLATFORMS = [
     "climate",
     "datetime",
     "number",
+    "select",
     "sensor",
     "switch",
     "water_heater",

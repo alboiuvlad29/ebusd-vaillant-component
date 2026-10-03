@@ -15,6 +15,7 @@ from homeassistant.config_entries import (
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .const import (
+    CONF_ALLOW_INSTALLER,
     CONF_AWAY_MODE_DURATION,
     CONF_COOLING,
     CONF_HWC_BOOST_AS_MODE,
@@ -28,6 +29,7 @@ from .const import (
     CONF_TEMPERATURE_WRITE,
     CONF_ZONES_WITH_TEMP_ONLY,
     COOLING_OPTIONS,
+    DEFAULT_ALLOW_INSTALLER,
     DEFAULT_AWAY_MODE_DURATION,
     DEFAULT_COOLING,
     DEFAULT_HWC_BOOST_AS_MODE,
@@ -141,6 +143,12 @@ class EbusdVaillantOptionsFlow(OptionsFlow):
                     CONF_ZONES_WITH_TEMP_ONLY,
                     default=self._config_entry.options.get(
                         CONF_ZONES_WITH_TEMP_ONLY, DEFAULT_ZONES_WITH_TEMP_ONLY
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_ALLOW_INSTALLER,
+                    default=self._config_entry.options.get(
+                        CONF_ALLOW_INSTALLER, DEFAULT_ALLOW_INSTALLER
                     ),
                 ): bool,
                 vol.Optional(

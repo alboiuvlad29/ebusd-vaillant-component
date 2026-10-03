@@ -42,6 +42,9 @@
       },
       "hot_water_boost": {
         "name": "Boost"
+      },
+      "green_iq": {
+        "name": "Green iQ"
       }
     },
     "datetime": {
@@ -98,6 +101,36 @@
       },
       "legionella_time": {
         "name": "Legionella protection time"
+      },
+      "eco_charge_hysteresis": {
+        "name": "Eco cylinder charging hysteresis"
+      },
+      "eco_min_temp_13h": {
+        "name": "Eco minimum temperature after 13 hours"
+      },
+      "eco_min_temp_24h": {
+        "name": "Eco minimum temperature after 24 hours"
+      },
+      "cylinder_charge_hysteresis": {
+        "name": "Cylinder charging hysteresis"
+      },
+      "cylinder_charge_offset": {
+        "name": "Cylinder charging offset"
+      },
+      "max_cylinder_charge_time": {
+        "name": "Maximum cylinder charging time"
+      },
+      "hot_water_lock_time": {
+        "name": "Hot water anti-cycling time"
+      },
+      "outside_temperature": {
+        "name": "Outside temperature"
+      },
+      "last_fault": {
+        "name": "Last fault"
+      },
+      "hp_hwc_mode": {
+        "name": "Hot water charging mode"
       }
     },
     "binary_sensor": {
@@ -112,11 +145,49 @@
       },
       "reheating_active": {
         "name": "Reheating active"
+      },
+      "noise_reduction_active": {
+        "name": "Noise reduction active"
       }
     },
     "button": {
       "hot_water_boost_start": {
         "name": "Start boost"
+      }
+    },
+    "select": {
+      "hot_water_preset": {
+        "name": "Hot water preset",
+        "state": {
+          "comfort": "Comfort",
+          "eco": "Eco"
+        }
+      }
+    },
+    "number": {
+      "hot_water_eco_temperature": {
+        "name": "Hot water eco temperature"
+      },
+      "eco_charge_hysteresis": {
+        "name": "Eco cylinder charging hysteresis"
+      },
+      "eco_min_temp_13h": {
+        "name": "Eco minimum temperature after 13 hours"
+      },
+      "eco_min_temp_24h": {
+        "name": "Eco minimum temperature after 24 hours"
+      },
+      "cylinder_charge_hysteresis": {
+        "name": "Cylinder charging hysteresis"
+      },
+      "cylinder_charge_offset": {
+        "name": "Cylinder charging offset"
+      },
+      "max_cylinder_charge_time": {
+        "name": "Maximum cylinder charging time"
+      },
+      "hot_water_lock_time": {
+        "name": "Hot water anti-cycling time"
       }
     }
   },
@@ -155,7 +226,8 @@
           "temperature_write": "Temperature changes",
           "poll_priming": "Polling priorities",
           "low_pressure_threshold": "Low pressure threshold (bar)",
-          "hot_water_boost_as_mode": "Show boost as a hot water mode (legacy)"
+          "hot_water_boost_as_mode": "Show boost as a hot water mode (legacy)",
+          "allow_installer_settings": "Allow installer settings to be changed"
         },
         "data_description": {
           "away_mode_duration": "Number of days the away mode lasts when activated (default: 7)",
@@ -166,7 +238,8 @@
           "temperature_write": "What changing a zone's target temperature writes. Smart: the permanent setpoint in Manual mode, a temporary boost (quick veto) in Time controlled mode. Always quick veto: the behaviour before 1.1.0.",
           "poll_priming": "Which values the integration asks ebusd to poll, and how often. Essentials fast: modes, setpoints, room and hot water temperatures, boost and power values fast (?1), everything else slowly (?5). Everything fast: all values at ?1. Off: rely on ebusd's own polling.",
           "low_pressure_threshold": "The Low pressure binary sensor turns on below this system pressure (default: 1.5)",
-          "hot_water_boost_as_mode": "Show Boost as a fourth mode on the water heater, as before 1.11.0. Boost is now on the Boost switch and button; this option will be removed in a later release."
+          "hot_water_boost_as_mode": "Show Boost as a fourth mode on the water heater, as before 1.11.0. Boost is now on the Boost switch and button; this option will be removed in a later release.",
+          "allow_installer_settings": "Make the installer values (cylinder charging hysteresis and offset, charging time, anti-cycling time, eco parameters) writable. Off: they are read-only diagnostic sensors. Wrong values can stop hot water production, so only enable this if you know the settings."
         }
       }
     }
@@ -201,65 +274,10 @@
     "old_definitions": {
       "title": "ebusd uses older Vaillant controller definitions",
       "description": "{zones} still use the older ebusd controller definitions (Z1DayTemp, day/night modes). They keep working. The newer definitions from ebusd-configuration add the effective target temperature, zone status, room sensors and more. Ignore this message if you want to stay on the older definitions."
-    }
-  },
-  "services": {
-    "set_quick_veto": {
-      "name": "Start heating boost",
-      "description": "Heats a zone to a temperature for a number of hours (Vaillant quick veto), then returns to its normal behaviour.",
-      "fields": {
-        "temperature": {
-          "name": "Temperature",
-          "description": "Boost temperature."
-        },
-        "duration_hours": {
-          "name": "Duration",
-          "description": "Hours; defaults to the configured quick veto duration."
-        }
-      }
     },
-    "cancel_quick_veto": {
-      "name": "Cancel heating boost",
-      "description": "Ends a running heating boost (quick veto) on a zone."
-    },
-    "set_away": {
-      "name": "Set away",
-      "description": "Sets away mode (holiday) for a zone or hot water from a start date to an end date.",
-      "fields": {
-        "start_date": {
-          "name": "Start date",
-          "description": "First day away."
-        },
-        "end_date": {
-          "name": "End date",
-          "description": "Last day away."
-        }
-      }
-    },
-    "cancel_away": {
-      "name": "Cancel away",
-      "description": "Ends away mode for a zone or hot water."
-    },
-    "hot_water_boost": {
-      "name": "Hot water boost",
-      "description": "Starts a one-time hot water charge, or cancels it.",
-      "fields": {
-        "enable": {
-          "name": "Start",
-          "description": "On starts the charge, off cancels it."
-        }
-      }
-    }
-  },
-  "exceptions": {
-    "unsupported_entity": {
-      "message": "{entity_id} does not support {service}."
-    },
-    "no_quick_veto": {
-      "message": "{entity_id} has no quick veto (heating boost)."
-    },
-    "no_hot_water_boost": {
-      "message": "{entity_id} has no hot water boost."
+    "heat_pump_fault": {
+      "title": "{device} reported fault {code}",
+      "description": "{device} stored fault {code} ({meaning}) on {timestamp}. Check the display or the installer manual. Dismiss this message once the cause is dealt with."
     }
   },
   "services": {

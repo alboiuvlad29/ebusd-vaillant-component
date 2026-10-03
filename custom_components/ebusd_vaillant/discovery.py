@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -11,6 +12,7 @@ from .const import (
     COOLING_DISABLED,
     COOLING_ENABLED,
     DEVICE_TYPE_LABELS,
+    FAULT_HISTORY_SLOTS,
     HWC_OPERATION_MODES,
     MODE_VOCAB_DAY,
     MODE_VOCAB_MANUAL,
@@ -135,6 +137,8 @@ class DiscoveredSensor:
     # when set, the entity name comes from translations instead of ``name``
     translation_key: str | None = None
     translation_placeholders: dict[str, str] | None = None
+    entity_category: str | None = None  # "diagnostic" or "config"
+    enabled_default: bool = True
     # Device-grouping fields (populated by _analyze)
     device_key: str = ""
     device_name: str = ""
@@ -162,6 +166,10 @@ class DiscoveredWaterHeater:
     holiday_end: TopicConfig | None = None
     holiday_start_time: TopicConfig | None = None
     holiday_end_time: TopicConfig | None = None
+    # HwcPreset (comfort/eco) and HwcEcoTempDesired: while the preset is eco, the
+    # controller heats to the eco temperature, not to HwcTempDesired
+    preset: TopicConfig | None = None
+    eco_temperature: TopicConfig | None = None
     min_temp: float = 40.0
     max_temp: float = 80.0
     temp_step: float = 1.0
@@ -225,6 +233,7 @@ class DiscoveredTextSensor:
     name: str
     topic: TopicConfig
     translation_key: str
+    entity_category: str | None = None  # "diagnostic" or "config"
     # Device-grouping fields (populated by _analyze)
     device_key: str = ""
     device_name: str = ""
@@ -293,6 +302,281 @@ class DiscoveredOperatingMode:
     hw_version: str = ""
 
 
+@dataclass
+class DiscoveredControl:
+    """A writable value shown as a select, number or switch (preset, Green iQ, installer values)."""
+
+    device_id: str
+    key: str
+    name: str
+    kind: str  # "select", "number" or "switch"
+    topic: TopicConfig
+    translation_key: str
+    options: tuple[str, ...] = ()  # select: the values ebusd accepts
+    min_value: float = 0.0
+    max_value: float = 100.0
+    step: float = 1.0
+    unit: str | None = None
+    device_class: str | None = None
+    entity_category: str | None = None  # "config" or "diagnostic"
+    # installer settings: a read-only sensor unless "Allow installer settings" is on
+    installer: bool = False
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+@dataclass
+class DiscoveredFaultHistory:
+    """Heat pump fault history: hmu LastError (polled) and FaultHistory0..9 (requested)."""
+
+    device_id: str
+    key: str
+    name: str
+    last_error: TopicConfig
+    history: list[TopicConfig] = field(default_factory=list)
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+@dataclass
+class DiscoveredOutdoorTemp:
+    """Outside temperature: the passive broadcast first, the controller's OutsideTemp second."""
+
+    device_id: str
+    key: str
+    name: str
+    broadcast: TopicConfig | None = None
+    controller: TopicConfig | None = None
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+@dataclass
+class DiscoveredNoiseSchedule:
+    """Noise reduction schedule: the controller's SilentTimer_<Day> messages."""
+
+    device_id: str
+    key: str
+    name: str
+    topics: list[TopicConfig] = field(default_factory=list)
+    # Device-grouping fields (populated by _analyze)
+    device_key: str = ""
+    device_name: str = ""
+    parent_key: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    sw_version: str = ""
+    hw_version: str = ""
+
+
+@dataclass(frozen=True)
+class _ControlSpec:
+    message: str
+    kind: str
+    translation_key: str
+    options: tuple[str, ...] = ()
+    min_value: float = 0.0
+    max_value: float = 100.0
+    step: float = 1.0
+    unit: str | None = None
+    device_class: str | None = None
+    entity_category: str | None = None
+    installer: bool = False
+
+
+_C = "°C"
+# Hot water controls, created on the Hot Water device when the message exists.
+_HWC_CONTROLS: tuple[_ControlSpec, ...] = (
+    _ControlSpec("HwcPreset", "select", "hot_water_preset", options=("comfort", "eco")),
+    _ControlSpec(
+        "HwcEcoTempDesired",
+        "number",
+        "hot_water_eco_temperature",
+        min_value=20,
+        max_value=80,
+        unit=_C,
+        device_class="temperature",
+    ),
+    # Installer values: read-only sensors unless "Allow installer settings" is on
+    _ControlSpec(
+        "HwcEcoChargeHyst",
+        "number",
+        "eco_charge_hysteresis",
+        min_value=1,
+        max_value=30,
+        unit="K",
+        entity_category="config",
+        installer=True,
+    ),
+    _ControlSpec(
+        "HwcEcoMinTemp13h",
+        "number",
+        "eco_min_temp_13h",
+        min_value=20,
+        max_value=80,
+        unit=_C,
+        device_class="temperature",
+        entity_category="config",
+        installer=True,
+    ),
+    _ControlSpec(
+        "HwcEcoMinTemp24h",
+        "number",
+        "eco_min_temp_24h",
+        min_value=20,
+        max_value=80,
+        unit=_C,
+        device_class="temperature",
+        entity_category="config",
+        installer=True,
+    ),
+    _ControlSpec(
+        "CylinderChargeHyst",
+        "number",
+        "cylinder_charge_hysteresis",
+        min_value=1,
+        max_value=30,
+        unit="K",
+        entity_category="config",
+        installer=True,
+    ),
+    _ControlSpec(
+        "CylinderChargeOffset",
+        "number",
+        "cylinder_charge_offset",
+        min_value=0,
+        max_value=40,
+        unit="K",
+        entity_category="config",
+        installer=True,
+    ),
+    _ControlSpec(
+        "MaxCylinderChargeTime",
+        "number",
+        "max_cylinder_charge_time",
+        min_value=15,
+        max_value=300,
+        step=5,
+        unit="min",
+        entity_category="config",
+        installer=True,
+    ),
+    _ControlSpec(
+        "HwcLockTime",
+        "number",
+        "hot_water_lock_time",
+        min_value=0,
+        max_value=180,
+        step=5,
+        unit="min",
+        entity_category="config",
+        installer=True,
+    ),
+)
+
+_SILENT_TIMER = re.compile(r"^SilentTimer_[A-Za-z]+\d*$")
+
+
+def _entities_system(
+    by_device: dict[str, dict[str, Any]],
+    prefix: str,
+    display_name: str,
+    manufacturer: str,
+    entities: list,
+) -> None:
+    """Entities that belong to the system device: Green iQ, outside temperature, noise schedule."""
+    system = {
+        "device_key": prefix,
+        "device_name": display_name,
+        "parent_key": prefix,
+        "manufacturer": manufacturer,
+    }
+    real = {
+        d: m for d, m in by_device.items() if not d.lower().startswith("scan.") and d != "broadcast"
+    }
+    for device_id, msgs in real.items():
+        if "GreenIQ" in msgs:
+            entities.append(
+                DiscoveredControl(
+                    device_id=device_id,
+                    key=f"{device_id}_green_iq",
+                    name="Green iQ",
+                    kind="switch",
+                    topic=_topic_config(
+                        prefix, device_id, "GreenIQ", _infer_field(msgs["GreenIQ"])
+                    ),
+                    translation_key="green_iq",
+                    entity_category="config",
+                    **system,
+                )
+            )
+            break
+
+    broadcast_topic = None
+    for dev, msgs in by_device.items():
+        if dev.lower() != "broadcast":
+            continue
+        name = next((m for m in msgs if m.lower() == "outsidetemp"), None)
+        if name is not None:
+            broadcast_topic = _topic_config(
+                prefix, dev, name, _infer_field(msgs[name]), writable=False
+            )
+    controller_topic = None
+    for device_id, msgs in real.items():
+        if "OutsideTemp" in msgs:
+            controller_topic = _topic_config(
+                prefix, device_id, "OutsideTemp", _infer_field(msgs["OutsideTemp"]), writable=False
+            )
+            break
+    if broadcast_topic is not None or controller_topic is not None:
+        entities.append(
+            DiscoveredOutdoorTemp(
+                device_id=prefix,
+                key=f"{prefix}_outside_temperature",
+                name="Outside temperature",
+                broadcast=broadcast_topic,
+                controller=controller_topic,
+                **system,
+            )
+        )
+
+    for device_id, msgs in real.items():
+        topics = [
+            _topic_config(prefix, device_id, name, "", writable=False)
+            for name in sorted(msgs)
+            if _SILENT_TIMER.match(name)
+        ]
+        if topics:
+            entities.append(
+                DiscoveredNoiseSchedule(
+                    device_id=device_id,
+                    key=f"{device_id}_noise_reduction",
+                    name="Noise reduction active",
+                    topics=topics,
+                    **system,
+                )
+            )
+            break
+
+
 # Electrical power input of the heat pump: (message, factor to kW)
 _POWER_INPUTS = [("PowerConsumptionHmu", 1.0), ("RunDataElectricPowerConsumption", 0.001)]
 
@@ -316,6 +600,8 @@ class SensorConfig:
     key: str | None = None
     unique_id_prefix: str = "ebusd_sensor"
     device_role: str | None = None
+    entity_category: str | None = None
+    enabled_default: bool = True
 
 
 def _power(topic: str, name: str) -> SensorConfig:
@@ -336,6 +622,30 @@ def _cop(topic: str, name: str) -> SensorConfig:
 
 def _cop_hwc(topic: str, name: str) -> SensorConfig:
     return SensorConfig((topic,), name, "measurement", device_role="hwc")
+
+
+def _live(
+    topic: str, name: str, unit: str | None = None, device_class: str | None = None
+) -> SensorConfig:
+    return SensorConfig((topic,), name, "measurement", unit, device_class, entity_category=None)
+
+
+def _diag(
+    topic: str,
+    name: str,
+    unit: str | None = None,
+    device_class: str | None = None,
+    enabled: bool = False,
+) -> SensorConfig:
+    return SensorConfig(
+        (topic,),
+        name,
+        "measurement",
+        unit,
+        device_class,
+        entity_category="diagnostic",
+        enabled_default=enabled,
+    )
 
 
 def _pressure(topics: tuple[str, ...], name: str, key: str) -> SensorConfig:
@@ -379,6 +689,23 @@ _SENSOR_CONFIGS: list[SensorConfig] = [
     _cop_hwc("CopHwcMonth", "COP Domestic Hot Water This Month"),
     _cop("CopCooling", "COP Cooling"),
     _cop("CopCoolingMonth", "COP Cooling This Month"),
+    # Heat pump live values (polled by ebusd with the local definitions)
+    _live("RunDataCompressorSpeed", "Compressor speed", "rps"),
+    _live("RunDataHighPressure", "High pressure", "bar", "pressure"),
+    _live("RunDataOverheatingActualValue", "Superheat", "K"),
+    _live("RunDataFan1Speed", "Fan speed", "rpm"),
+    _live("RunDataEEVPositionAbs", "EEV position"),
+    _live("RunDataBuildingCircuitFlow", "Building circuit flow", "L/h", "volume_flow_rate"),
+    _live("RunDataHeatOutput", "Heat output", "W", "power"),
+    _live("CurrentCompressorUtil", "Compressor utilisation", "%"),
+    # Heat pump configuration, read-only
+    _diag("CompHysteresisHeating", "Compressor hysteresis heating"),
+    _diag("CompStartHeatingFrom", "Compressor start heating from"),
+    _diag("MaxRemainingDeltaP", "Maximum remaining pressure difference"),
+    _diag("BuildingCircuitPumpOutputHeating", "Building circuit pump output heating", "%"),
+    _diag("BuildingCircuitPumpOutputHwc", "Building circuit pump output hot water", "%"),
+    _diag("NoiseReductionLevel", "Noise reduction level", "%", enabled=True),
+    _diag("OutsideTempAvg", "Outside temperature average", "°C", "temperature", enabled=True),
 ]
 
 
@@ -838,7 +1165,7 @@ def _analyze(
 
     for device_id, msgs in by_device.items():
         # Skip ebusd meta-devices that carry no heating entities.
-        if device_id.lower().startswith("scan."):
+        if device_id.lower().startswith("scan.") or device_id.lower() == "broadcast":
             continue
 
         # Per-device hardware metadata (model, sw/hw version) from scan data.
@@ -910,6 +1237,23 @@ def _analyze(
                         if hwc_h_et_key
                         else None
                     ),
+                    preset=(
+                        _topic_config(
+                            prefix, device_id, "HwcPreset", _infer_field(msgs["HwcPreset"])
+                        )
+                        if "HwcPreset" in msgs
+                        else None
+                    ),
+                    eco_temperature=(
+                        _topic_config(
+                            prefix,
+                            device_id,
+                            "HwcEcoTempDesired",
+                            _infer_field(msgs["HwcEcoTempDesired"]),
+                        )
+                        if "HwcEcoTempDesired" in msgs
+                        else None
+                    ),
                     device_key=f"{device_id}_hwc",
                     device_name=f"{display_name} Hot Water",
                     parent_key=prefix,
@@ -970,6 +1314,32 @@ def _analyze(
                         **hwc_kwargs,
                     )
                 )
+            for spec in _HWC_CONTROLS:
+                if spec.message in msgs:
+                    entities.append(
+                        DiscoveredControl(
+                            device_id=device_id,
+                            key=f"{device_id}_hwc_{spec.translation_key}",
+                            name=spec.translation_key.replace("_", " ").capitalize(),
+                            kind=spec.kind,
+                            topic=_topic_config(
+                                prefix,
+                                device_id,
+                                spec.message,
+                                _infer_field(msgs[spec.message]),
+                            ),
+                            translation_key=spec.translation_key,
+                            options=spec.options,
+                            min_value=spec.min_value,
+                            max_value=spec.max_value,
+                            step=spec.step,
+                            unit=spec.unit,
+                            device_class=spec.device_class,
+                            entity_category=spec.entity_category,
+                            installer=spec.installer,
+                            **hwc_kwargs,
+                        )
+                    )
 
         # Heating circuit flow temperature range:
         # Hc{n}MinFlowTempDesired + Hc{n}MaxFlowTempDesired
@@ -1432,6 +1802,8 @@ def _analyze(
                     state_class=pattern.state_class,
                     unit=pattern.unit,
                     unique_id_prefix=pattern.unique_id_prefix,
+                    entity_category=pattern.entity_category,
+                    enabled_default=pattern.enabled_default,
                     device_key=_s_dev_key,
                     device_name=_s_dev_name,
                     parent_key=prefix,
@@ -1441,6 +1813,52 @@ def _analyze(
                     hw_version=_hw,
                 )
             )
+
+        # --- Heat pump DHW charging mode (read-only) ---
+        if "HwcMode" in msgs:
+            entities.append(
+                DiscoveredTextSensor(
+                    device_id=device_id,
+                    key=f"{device_id}_hp_hwc_mode",
+                    name="Hot water charging mode",
+                    topic=_topic_config(
+                        prefix, device_id, "HwcMode", _infer_field(msgs["HwcMode"]), writable=False
+                    ),
+                    translation_key="hp_hwc_mode",
+                    entity_category="diagnostic",
+                    device_key=_heat_pump_key,
+                    device_name=_heat_pump_name,
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
+                )
+            )
+
+        # --- Heat pump fault history: LastError (polled) + FaultHistory0..9 (on request) ---
+        if "LastError" in msgs:
+            entities.append(
+                DiscoveredFaultHistory(
+                    device_id=device_id,
+                    key=f"{device_id}_fault_history",
+                    name="Last fault",
+                    last_error=_topic_config(prefix, device_id, "LastError", "", writable=False),
+                    history=[
+                        _topic_config(prefix, device_id, f"FaultHistory{i}", "", writable=False)
+                        for i in range(FAULT_HISTORY_SLOTS)
+                    ],
+                    device_key=_heat_pump_key,
+                    device_name=_heat_pump_name,
+                    parent_key=prefix,
+                    manufacturer=_manufacturer,
+                    model=_model,
+                    sw_version=_sw,
+                    hw_version=_hw,
+                )
+            )
+
+    _entities_system(by_device, prefix, display_name, _mf or "", entities)
 
     # --- System pressure: Status07.displaypressure (every ~4 s) as fallback sensor,
     # and a low-pressure monitor on the system device ---

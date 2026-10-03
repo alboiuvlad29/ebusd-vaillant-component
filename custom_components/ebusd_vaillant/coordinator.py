@@ -38,12 +38,16 @@ from .const import (
 )
 from .discovery import (
     DiscoveredClimate,
+    DiscoveredControl,
     DiscoveredCoolTempLimit,
     DiscoveredEffectiveTarget,
     DiscoveredErrorSensor,
+    DiscoveredFaultHistory,
     DiscoveredFlag,
     DiscoveredFlowTempRange,
+    DiscoveredNoiseSchedule,
     DiscoveredOperatingMode,
+    DiscoveredOutdoorTemp,
     DiscoveredPressureMonitor,
     DiscoveredSensor,
     DiscoveredTextSensor,
@@ -51,6 +55,7 @@ from .discovery import (
     TopicConfig,
     _analyze,
     _get,
+    _infer_field,
     discover_manufacturer,
 )
 from .writes import WriteGuard
@@ -90,7 +95,13 @@ def _entity_sig(e: DiscoveredClimate | DiscoveredWaterHeater | DiscoveredSensor)
             e.holiday_end_time is not None,
             e.sf_mode is not None,
             e.mode_vocab,
+            e.preset is not None,
+            e.eco_temperature is not None,
         )
+    if isinstance(e, DiscoveredOutdoorTemp):
+        return (e.key, e.broadcast is not None, e.controller is not None)
+    if isinstance(e, DiscoveredNoiseSchedule):
+        return (e.key, tuple(cfg.read_topic for cfg in e.topics))
     if isinstance(e, DiscoveredEffectiveTarget):
         z = e.zone
         return (
@@ -220,6 +231,22 @@ class EbusdCoordinator:
         payload = self._by_device.get(device, {}).get(msg)
         return _get(payload, topic_cfg.field)
 
+    def outdoor_temperature(self) -> float | None:
+        """Outside temperature in °C: the passive broadcast first, else the controller's value."""
+        candidates = []
+        for device, msgs in self._by_device.items():
+            if device.lower() == "broadcast":
+                candidates += [m for n, m in msgs.items() if n.lower() == "outsidetemp"]
+        for device, msgs in self._by_device.items():
+            if device.lower() != "broadcast" and "OutsideTemp" in msgs:
+                candidates.append(msgs["OutsideTemp"])
+        for payload in candidates:
+            try:
+                return float(_get(payload, _infer_field(payload)))
+            except TypeError, ValueError:
+                continue
+        return None
+
     def add_listener(self, listener: Listener) -> None:
         """Register a listener. Fires immediately with current state, then on each new discovery."""
         self._listeners.append(listener)
@@ -306,6 +333,8 @@ class EbusdCoordinator:
                         entity.holiday_end,
                         entity.holiday_start_time,
                         entity.holiday_end_time,
+                        entity.preset,
+                        entity.eco_temperature,
                     ],
                     False,
                 )
@@ -321,8 +350,19 @@ class EbusdCoordinator:
                 )
             elif isinstance(entity, DiscoveredCoolTempLimit):
                 add([entity.cool_temp, entity.run_data_status], False)
-            elif isinstance(entity, DiscoveredErrorSensor | DiscoveredFlag | DiscoveredTextSensor):
+            elif isinstance(
+                entity, DiscoveredErrorSensor | DiscoveredFlag | DiscoveredTextSensor
+            ) or (isinstance(entity, DiscoveredControl)):
                 add([entity.topic], False)
+            elif isinstance(entity, DiscoveredFaultHistory):
+                # FaultHistory0..9 are requested by the fault sensor itself
+                add([entity.last_error], False)
+            elif isinstance(entity, DiscoveredOutdoorTemp):
+                # the broadcast is overheard; the controller value is polled by ebusd
+                add([entity.controller], False)
+            elif isinstance(entity, DiscoveredNoiseSchedule):
+                # slot reads need an index ebusd cannot be given over MQTT: only listen
+                continue
             elif isinstance(entity, DiscoveredEffectiveTarget):
                 continue  # all of its topics belong to the zone's climate entity
             elif isinstance(entity, DiscoveredPressureMonitor):

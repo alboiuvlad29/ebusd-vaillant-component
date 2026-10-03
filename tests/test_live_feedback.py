@@ -275,3 +275,25 @@ def test_sf_mode_topic_exists_before_first_value():
     first = {k: v for k, v in NEW.items() if not k.endswith("Z1SFMode")}
     z1 = next(e for e in _analyze(_by_device(first), "ebusd") if isinstance(e, DiscoveredClimate))
     assert z1.sf_mode.write_topic == f"{C}/Z1SFMode/set"
+
+
+# --- 1.14: the boost switch turns on at once ------------------------------------------------
+
+
+async def test_boost_switch_turns_on_optimistically_new_definitions(hass, mqtt_mock):
+    await _setup(hass, NEW)
+    assert hass.states.get(BOOST).state == "off"
+    await hass.services.async_call("switch", "turn_on", {"entity_id": BOOST}, blocking=True)
+    assert hass.states.get(BOOST).state == "on"  # without waiting for the next SFMode poll
+    await _send(hass, "Z1SFMode", "auto")  # the controller did not take it
+    assert hass.states.get(BOOST).state == "off"
+
+
+async def test_boost_switch_turns_on_optimistically_old_definitions(hass, mqtt_mock, freezer):
+    freezer.move_to("2026-10-02 12:00:00")
+    await _setup(hass, {k: v for k, v in OLD.items() if "SFMode" not in k})
+    assert hass.states.get(BOOST).state == "off"
+    await hass.services.async_call("switch", "turn_on", {"entity_id": BOOST}, blocking=True)
+    state = hass.states.get(BOOST)
+    assert state.state == "on"
+    assert state.attributes["boost_ends_at"].startswith("2026-10-02T15:00")  # 3 hours

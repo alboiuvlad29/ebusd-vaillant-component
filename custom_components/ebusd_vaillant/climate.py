@@ -262,6 +262,11 @@ class EbusdClimateEntity(ClimateEntity):
         await self._apply_bindings(self._config, seed=True)
         register_entity(self.hass, self)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        outdoor = self._coordinator.outdoor_temperature() if self._coordinator else None
+        return {"outdoor_temperature": outdoor} if outdoor is not None else {}
+
     async def async_will_remove_from_hass(self) -> None:
         unregister_entity(self.hass, self)
         for _topic, unsub in self._subscriptions.values():

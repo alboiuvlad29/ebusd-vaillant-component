@@ -1071,7 +1071,7 @@ wheels = [
 
 [[package]]
 name = "ebusd-vaillant"
-version = "1.13.3"
+version = "1.14.0"
 source = { virtual = "." }
 
 [package.optional-dependencies]

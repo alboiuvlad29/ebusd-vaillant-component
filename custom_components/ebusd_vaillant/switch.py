@@ -10,6 +10,7 @@ from typing import Any
 from homeassistant.components import mqtt
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
@@ -25,7 +26,14 @@ from .const import (
 )
 from .coordinator import EbusdCoordinator
 from .device import LegacyObjectIdMixin, build_device_info
-from .discovery import DiscoveredClimate, DiscoveredWaterHeater, TopicConfig, _get
+from .discovery import (
+    DiscoveredClimate,
+    DiscoveredControl,
+    DiscoveredWaterHeater,
+    TopicConfig,
+    _get,
+    _parse_flag,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,6 +78,10 @@ async def async_setup_entry(
                         ),
                         e,
                     )
+            elif isinstance(e, DiscoveredControl) and e.kind == "switch":
+                _add_or_update(
+                    f"{e.key}_control", lambda e=e: EbusdControlSwitch(hass, e, coordinator), e
+                )
             elif isinstance(e, DiscoveredWaterHeater):
                 if e.holiday_start and e.holiday_end:
                     _add_or_update(
@@ -400,11 +412,22 @@ class EbusdQuickVetoSwitch(_FollowsDiscovery):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         qv = self._config.quick_veto_temp
+        qd = self._config.quick_veto_duration
         if qv and qv.write_topic:
             await self._publish(qv.write_topic, str(self._quick_veto_temp))
-        qd = self._config.quick_veto_duration
         if qd and qd.write_topic:
             await self._publish(qd.write_topic, str(self._quick_veto_duration))
+        else:
+            return  # nothing started, so nothing to show
+        # Show it on right away; the next SFMode / end date update confirms or corrects it.
+        if self._config.sf_mode is not None:
+            self._sf_mode = "veto"
+        else:
+            end = datetime.now() + timedelta(hours=self._quick_veto_duration)
+            self._quick_veto_end_date = end.strftime(_DATE_FMT)
+            self._quick_veto_end_time = end.strftime("%H:%M:%S")
+        self._schedule_end()
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         sf_mode = self._config.sf_mode
@@ -421,3 +444,41 @@ class EbusdQuickVetoSwitch(_FollowsDiscovery):
         qet = self._config.quick_veto_end_time
         if qet and qet.write_topic:
             await self._publish(qet.write_topic, _QUICK_VETO_CANCEL_TIME)
+
+
+class EbusdControlSwitch(_FollowsDiscovery):
+    """A plain on/off register, e.g. Green iQ."""
+
+    def __init__(
+        self, hass: HomeAssistant, config: DiscoveredControl, coordinator: EbusdCoordinator
+    ) -> None:
+        super().__init__(hass, config, coordinator)
+        self._attr_translation_key = config.translation_key
+        self._attr_unique_id = f"ebusd_control_{config.key}"
+        self._legacy_object_id = config.name
+        if config.entity_category:
+            self._attr_entity_category = EntityCategory(config.entity_category)
+        self._state: bool | None = None
+
+    def _bindings(self) -> dict[str, tuple[TopicConfig | None, Any]]:
+        return {"state": (self._config.topic, self._handle_state)}
+
+    @callback
+    def _handle_state(self, value: Any) -> None:
+        self._state = _parse_flag(value)
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._state
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._set(False)
+
+    async def _set(self, on: bool) -> None:
+        if self._config.topic.write_topic:
+            await self._publish(self._config.topic.write_topic, "on" if on else "off")
+            self._state = on
+            self.async_write_ha_state()

@@ -9,14 +9,14 @@ from typing import Any
 from homeassistant.components import mqtt
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import EntityCategory, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import CONF_ALLOW_INSTALLER, DEFAULT_ALLOW_INSTALLER, DOMAIN
 from .coordinator import EbusdCoordinator
 from .device import build_device_info
-from .discovery import DiscoveredCoolTempLimit, TopicConfig, _get
+from .discovery import DiscoveredControl, DiscoveredCoolTempLimit, TopicConfig, _get
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +28,8 @@ async def async_setup_entry(
 ) -> None:
     coordinator: EbusdCoordinator = hass.data[DOMAIN][entry.entry_id]
     cool_temp_by_key: dict[str, EbusdCoolTempLimitEntity] = {}
+    controls: set[str] = set()
+    allow_installer = entry.options.get(CONF_ALLOW_INSTALLER, DEFAULT_ALLOW_INSTALLER)
 
     def _on_discover(entities: list) -> None:
         new = []
@@ -37,6 +39,14 @@ async def async_setup_entry(
                     entity = EbusdCoolTempLimitEntity(hass, e, coordinator)
                     cool_temp_by_key[e.key] = entity
                     new.append(entity)
+            elif (
+                isinstance(e, DiscoveredControl)
+                and e.kind == "number"
+                and (allow_installer or not e.installer)
+                and e.key not in controls
+            ):
+                controls.add(e.key)
+                new.append(EbusdControlNumber(hass, e, coordinator))
         if new:
             async_add_entities(new)
 
@@ -103,3 +113,60 @@ class EbusdCoolTempLimitEntity(NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         await self._coordinator.async_write_setpoint(self._config.cool_temp, str(value))
+
+
+class EbusdControlNumber(NumberEntity):
+    """A numeric setting: the hot water eco temperature and the installer values."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_mode = NumberMode.BOX
+
+    def __init__(
+        self, hass: HomeAssistant, config: DiscoveredControl, coordinator: EbusdCoordinator
+    ) -> None:
+        self.hass = hass
+        self._config = config
+        self._coordinator = coordinator
+        self._attr_translation_key = config.translation_key
+        self._attr_unique_id = f"ebusd_control_{config.key}"
+        self._attr_device_info = build_device_info(config)
+        self._attr_native_min_value = config.min_value
+        self._attr_native_max_value = config.max_value
+        self._attr_native_step = config.step
+        self._attr_native_unit_of_measurement = config.unit
+        self._attr_device_class = config.device_class  # type: ignore[assignment]
+        if config.entity_category:
+            self._attr_entity_category = EntityCategory(config.entity_category)
+        self._attr_native_value: float | None = None
+        self._unsubscribe: Any = None
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _handle(msg: mqtt.ReceiveMessage) -> None:
+            try:
+                payload = json.loads(msg.payload)
+            except json.JSONDecodeError, ValueError:
+                payload = msg.payload
+            self._handle_value(_get(payload, self._config.topic.field))
+            self.async_write_ha_state()
+
+        self._unsubscribe = await mqtt.async_subscribe(
+            self.hass, self._config.topic.read_topic, _handle
+        )
+        self._handle_value(self._coordinator.get_current_value(self._config.topic))
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsubscribe:
+            self._unsubscribe()
+
+    @callback
+    def _handle_value(self, value: Any) -> None:
+        try:
+            self._attr_native_value = float(value)
+        except TypeError, ValueError:
+            pass
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self._coordinator.async_write_setpoint(self._config.topic, str(value))

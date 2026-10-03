@@ -29,6 +29,11 @@ DEFAULT_ZONES_WITH_TEMP_ONLY = True
 CONF_HWC_BOOST_AS_MODE = "hot_water_boost_as_mode"
 DEFAULT_HWC_BOOST_AS_MODE = False
 
+# Let the installer settings (hot water hysteresis, charge time, eco parameters, ...) be
+# written from Home Assistant. Off: they are shown as read-only diagnostic sensors.
+CONF_ALLOW_INSTALLER = "allow_installer_settings"
+DEFAULT_ALLOW_INSTALLER = False
+
 # Pressure below which the Low pressure binary sensor turns on (bar).
 CONF_LOW_PRESSURE = "low_pressure_threshold"
 DEFAULT_LOW_PRESSURE = 1.5
@@ -170,3 +175,7 @@ _DISCOVERY_TOPICS_HC = [
     "Hc{n}MinCoolTempDesired",
     "Hc{n}MinCoolingTempDesired",
 ]
+
+# Heat pump fault history: hmu FaultHistory0 (newest) .. FaultHistory9
+FAULT_HISTORY_SLOTS = 10
+FAULT_EVENT = "ebusd_vaillant_fault"
