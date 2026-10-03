@@ -299,10 +299,13 @@ class EbusdNoiseReductionBinarySensor(BinarySensorEntity):
 
     async def async_added_to_hass(self) -> None:
         await self._bind()
+
         # the state depends on the clock as well: re-evaluate every minute
-        self._cancel_tick = async_track_time_interval(
-            self.hass, lambda _now: self.async_write_ha_state(), timedelta(minutes=1)
-        )
+        @callback
+        def _tick(_now: Any) -> None:
+            self.async_write_ha_state()
+
+        self._cancel_tick = async_track_time_interval(self.hass, _tick, timedelta(minutes=1))
 
     async def async_update_config(self, config: DiscoveredNoiseSchedule) -> None:
         self._config = config

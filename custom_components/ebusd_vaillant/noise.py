@@ -31,6 +31,9 @@ class NoiseSchedule:
     def __init__(self) -> None:
         # weekday index -> slot -> (start minutes, end minutes)
         self._slots: dict[int, dict[int, tuple[int, int]]] = {}
+        # weekday index -> slot indexes seen (empty slots too) and the day's slot count
+        self._seen: dict[int, set[int]] = {}
+        self._count: dict[int, int] = {}
 
     @property
     def known(self) -> bool:
@@ -50,6 +53,11 @@ class NoiseSchedule:
             return
         start, end = _minutes(_value(payload, "htm")), _minutes(_value(payload, "htm_1"))
         slots = self._slots.setdefault(day, {})
+        self._seen.setdefault(day, set()).add(index)
+        try:
+            self._count[day] = int(_value(payload, "slotcount"))
+        except (TypeError, ValueError):  # fmt: skip
+            pass
         if start is None or end is None or start == end:
             slots.pop(index, None)  # an empty slot (00:00 - 00:00)
         else:
@@ -59,10 +67,12 @@ class NoiseSchedule:
         """Whether a period of today's schedule covers *now*; None while nothing is known."""
         if not self._slots:
             return None
+        day = now.weekday()
+        # only some of the day's slots are known: do not claim "off"
+        if len(self._seen.get(day, ())) < self._count.get(day, 0):
+            return None
         minute = now.hour * 60 + now.minute
-        return any(
-            start <= minute < end for start, end in self._slots.get(now.weekday(), {}).values()
-        )
+        return any(start <= minute < end for start, end in self._slots.get(day, {}).values())
 
     def as_dict(self) -> dict[str, list[str]]:
         return {

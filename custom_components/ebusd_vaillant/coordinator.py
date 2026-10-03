@@ -361,7 +361,8 @@ class EbusdCoordinator:
                 # the broadcast is overheard; the controller value is polled by ebusd
                 add([entity.controller], False)
             elif isinstance(entity, DiscoveredNoiseSchedule):
-                add(entity.topics, False)
+                # slot reads need an index ebusd cannot be given over MQTT: only listen
+                continue
             elif isinstance(entity, DiscoveredEffectiveTarget):
                 continue  # all of its topics belong to the zone's climate entity
             elif isinstance(entity, DiscoveredPressureMonitor):

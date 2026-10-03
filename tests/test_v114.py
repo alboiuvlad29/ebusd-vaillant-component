@@ -388,8 +388,11 @@ async def test_fault_history_requested_and_listed(hass, mqtt_mock, mqtt_client_m
     assert state.attributes["meaning"] == "Building circuit: water pressure too low"
 
 
+STORE_KEY = f"{DOMAIN}.fault_hmu_fault_history"
+
+
 async def test_new_fault_fires_once_and_survives_restart(
-    hass, mqtt_mock, mqtt_client_mock, fast_requests
+    hass, hass_storage, mqtt_mock, mqtt_client_mock, fast_requests
 ):
     events = []
     hass.bus.async_listen(FAULT_EVENT, lambda e: events.append(e.data))
@@ -404,13 +407,65 @@ async def test_new_fault_fires_once_and_survives_restart(
     assert any(key[1].startswith("heat_pump_fault_hmu_fault_history") for key in issues)
     await _send(hass, {f"{H}/LastError": newer}, times=1)
     assert len(events) == 1  # unchanged
-    # restart: the stored timestamp prevents the old fault from firing again
+    await hass.async_block_till_done()
+    async_fire_time_changed(hass, datetime.now().astimezone() + timedelta(seconds=5))
+    await hass.async_block_till_done()
+    assert hass_storage[STORE_KEY]["data"]["last_seen"].startswith("2026-10-02T07:15")
+    # restart with the same retained LastError: the stored timestamp prevents a repeat
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
     await _send(hass, {f"{H}/LastError": newer})
     assert len(events) == 1
-    async_fire_time_changed(hass, datetime.now().astimezone() + timedelta(seconds=5))
+
+
+async def test_fault_while_ha_was_down_is_announced(
+    hass, hass_storage, mqtt_mock, mqtt_client_mock, fast_requests
+):
+    hass_storage[STORE_KEY] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": STORE_KEY,
+        "data": {"last_seen": "2026-09-18T18:41:00+00:00"},
+    }
+    events = []
+    hass.bus.async_listen(FAULT_EVENT, lambda e: events.append(e.data))
+    await _setup(hass)
+    await _send(hass, {f"{H}/LastError": _fault(731, "02.10.2026", "07:15")})
+    assert len(events) == 1
+
+
+async def test_stored_timestamp_equal_means_no_event(
+    hass, hass_storage, mqtt_mock, mqtt_client_mock, fast_requests
+):
+    stamp = parse_fault_entry(ENTRY_0).timestamp.isoformat()
+    hass_storage[STORE_KEY] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": STORE_KEY,
+        "data": {"last_seen": stamp},
+    }
+    events = []
+    hass.bus.async_listen(FAULT_EVENT, lambda e: events.append(e.data))
+    await _setup(hass)
+    await _send(hass, {f"{H}/LastError": ENTRY_0})
+    assert events == []
+
+
+async def test_retained_history_in_any_order_never_announces(
+    hass, hass_storage, mqtt_mock, mqtt_client_mock, fast_requests
+):
+    events = []
+    hass.bus.async_listen(FAULT_EVENT, lambda e: events.append(e.data))
+    await _setup(hass)
+    await _send(hass, {f"{H}/LastError": ENTRY_0})
+    # an older slot arriving first or last changes nothing: only LastError announces
+    for index in (4, 2, 0, 1):
+        date, time = REAL_HISTORY[index]
+        async_fire_mqtt_message(
+            hass, f"{H}/FaultHistory{index}", json.dumps(_fault(22, date, time))
+        )
     await hass.async_block_till_done()
+    assert events == []
 
 
 async def test_noise_reduction_binary_sensor(hass, mqtt_mock):
@@ -428,3 +483,30 @@ async def test_noise_reduction_binary_sensor(hass, mqtt_mock):
     with patch("custom_components.ebusd_vaillant.binary_sensor.dt_util.now", return_value=quiet):
         await _send(hass, {f"{C}/SilentTimer_Monday": _slot("14:00", "16:00")}, times=1)
         assert hass.states.get("binary_sensor.vaillant_noise_reduction_active").state == "off"
+
+
+async def test_noise_reduction_state_follows_the_clock(hass, mqtt_mock):
+    await _setup(hass)
+    base = {f"{C}/{k}": v for k, v in HWC.items()}
+    entity_id = "binary_sensor.vaillant_noise_reduction_active"
+    path = "custom_components.ebusd_vaillant.binary_sensor.dt_util.now"
+    before = datetime(2026, 10, 5, 13, 59, 30).astimezone()
+    with patch(path, return_value=before):
+        await _send(hass, {**base, f"{C}/SilentTimer_Monday": _slot("14:00", "16:00")})
+        assert hass.states.get(entity_id).state == "off"
+    inside = before + timedelta(minutes=1)
+    with patch(path, return_value=inside):
+        async_fire_time_changed(hass, datetime.now().astimezone() + timedelta(seconds=61))
+        await hass.async_block_till_done()
+        assert hass.states.get(entity_id).state == "on"
+
+
+def test_noise_schedule_unknown_until_all_slots_are_seen():
+    schedule = NoiseSchedule()
+    three = {"slotcount": {"value": 3}}
+    schedule.update("SilentTimer_Monday", {**_slot("00:00", "08:00", 0), **three})
+    monday = datetime(2026, 10, 5, 15, 0)
+    assert schedule.active_at(monday) is None  # 1 of 3 slots: no claim yet
+    schedule.update("SilentTimer_Monday", {**_slot("14:00", "16:00", 1), **three})
+    schedule.update("SilentTimer_Monday", {**_slot("18:30", "24:00", 2), **three})
+    assert schedule.active_at(monday) is True

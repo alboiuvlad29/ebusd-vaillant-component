@@ -754,7 +754,6 @@ class EbusdLastFaultSensor(SensorEntity):
             except json.JSONDecodeError, ValueError:
                 payload = None
             self._set_slot(index, payload)
-            self._announce_if_new()
             self.async_write_ha_state()
 
         return _handle
@@ -810,10 +809,11 @@ class EbusdLastFaultSensor(SensorEntity):
 
     @callback
     def _announce_if_new(self) -> None:
-        entries = self._entries()
-        if not entries:
+        # LastError is by definition the newest entry. The history slots (retained, in any
+        # order) only feed the attribute, so they can never announce an old fault.
+        latest = self._newest
+        if latest is None:
             return
-        latest = entries[0]
         if self._seen is None:
             # first run: take over what is already there without announcing it
             self._remember(latest)

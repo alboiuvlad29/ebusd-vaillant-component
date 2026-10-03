@@ -32,6 +32,9 @@ no change.
   time, anti-cycling time, eco parameters): read-only diagnostic sensors, number entities
   with the new option **Allow installer settings to be changed**.
 - **Heating boost switch** turns on immediately instead of waiting for the next poll.
+- `MultiInputSetting` is not read by the integration. The register is UIN (2 bytes): the
+  upstream definition (UCH plus IGN:3) fails to decode, use the corrected line from the local
+  definitions.
 - Not included yet: condensation temperature (needs the gauge or absolute pressure check
   against T.0.86), instantaneous COP, editing the noise reduction schedule.
 
@@ -47,7 +50,9 @@ After installing v1.14.0 and restarting Home Assistant:
 2. **Fault history:** `sensor.vaillant_heat_pump_last_fault` shows `F.022` with 7 entries in
    `history` (18.09.2026 18:41 newest). The ebusd log shows `FaultHistory0` to `9` read
    requests about one second apart. Restart HA: no `ebusd_vaillant_fault` event and no new
-   Repairs issue for the old faults.
+   Repairs issue for the old faults. The `Current error` sensors (diagnostic) are disabled by
+   default: enable them to check `none`. After a new fault, check that the history shifts by
+   one (an empty `/get` may return ebusd's cached entries).
 3. **Green iQ:** `switch.vaillant_green_iq` follows the panel (Menu, Control, Green iQ) and
    writes `on`/`off` to `ebusd/ctlv3/GreenIQ/set`.
 4. **Outside temperature:** `sensor.vaillant_outside_temperature` updates about every minute
@@ -55,7 +60,8 @@ After installing v1.14.0 and restarting Home Assistant:
 5. **Noise reduction:** `binary_sensor.vaillant_noise_reduction_active` is on during the
    periods (00:00 to 08:00, 14:00 to 16:00, 18:30 to 24:00). This depends on how ebusd
    publishes the slots of `SilentTimer_<Day>`: check the `schedule` attribute shows all
-   three periods; if a day shows only one, report the MQTT payloads of `SilentTimer_Monday`.
+   three periods. The sensor stays unknown until all slots of the day (`slotcount`) have been
+   seen; if it never leaves unknown, report the MQTT payloads of `SilentTimer_Monday`.
 6. **Heat pump sensors** appear on the heat pump device with plausible values (compare with the
    service menu: T.0.93, T.0.63, T.0.88, T.0.17).
 7. **Installer values:** read-only sensors by default (cylinder hysteresis 10 K, charging time
