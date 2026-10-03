@@ -510,3 +510,53 @@ def test_noise_schedule_unknown_until_all_slots_are_seen():
     schedule.update("SilentTimer_Monday", {**_slot("14:00", "16:00", 1), **three})
     schedule.update("SilentTimer_Monday", {**_slot("18:30", "24:00", 2), **three})
     assert schedule.active_at(monday) is True
+
+
+async def test_noise_slots_are_requested_one_by_one(hass, mqtt_mock, mqtt_client_mock):
+    with patch("custom_components.ebusd_vaillant.binary_sensor.NOISE_REQUEST_INTERVAL", 0):
+        await _setup(hass)
+        base = {f"{C}/{k}": v for k, v in HWC.items()}
+        three = {"slotcount": {"value": 3}}
+        msgs = {
+            **base,
+            f"{C}/SilentTimer_Monday": {**_slot("00:00", "08:00", 0), **three},
+            f"{C}/SilentTimer_Tuesday": {**_slot("00:00", "08:00", 0), **three},
+        }
+        await _send(hass, msgs)
+        await hass.async_block_till_done(wait_background_tasks=True)
+    gets = [
+        (c.args[0], c.args[1].decode() if isinstance(c.args[1], bytes) else c.args[1])
+        for c in mqtt_client_mock.publish.call_args_list
+        if "SilentTimer" in c.args[0]
+    ]
+    for day in ("Monday", "Tuesday"):
+        topic = f"{C}/SilentTimer_{day}/get"
+        assert [p for t, p in gets if t == topic][:3] == ["0", "1", "2"]
+
+
+async def test_noise_schedule_completes_from_the_slot_answers(hass, mqtt_mock):
+    await _setup(hass)
+    base = {f"{C}/{k}": v for k, v in HWC.items()}
+    three = {"slotcount": {"value": 3}}
+    entity_id = "binary_sensor.vaillant_noise_reduction_active"
+    monday = datetime(2026, 10, 5, 15, 0).astimezone()
+    with patch("custom_components.ebusd_vaillant.binary_sensor.dt_util.now", return_value=monday):
+        await _send(
+            hass,
+            {**base, f"{C}/SilentTimer_Monday": {**_slot("00:00", "08:00", 0), **three}},
+            times=1,
+        )
+        await _send(
+            hass, {f"{C}/SilentTimer_Monday": {**_slot("18:30", "24:00", 2), **three}}, times=1
+        )
+        assert hass.states.get(entity_id).state == "unknown"  # slot 1 still missing
+        await _send(
+            hass, {f"{C}/SilentTimer_Monday": {**_slot("14:00", "16:00", 1), **three}}, times=1
+        )
+        state = hass.states.get(entity_id)
+        assert state.state == "on"
+        assert state.attributes["schedule"]["Monday"] == [
+            "00:00-08:00",
+            "14:00-16:00",
+            "18:30-24:00",
+        ]

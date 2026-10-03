@@ -2,6 +2,21 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
+## 1.14.1
+
+- Fix: the **Noise reduction active** schedule was incomplete. `SilentTimer_<Day>` holds only
+  the slot that was read last, so the integration requested no slots and saw a random
+  subset. It now publishes each slot number to `.../SilentTimer_<Day>/get` (slots 0 to
+  `slotcount - 1`, one per second, at startup and hourly) and stays unknown until all
+  slots of the day are known.
+- HACS install: the release workflow's token lacks `contents: write`, so no
+  `ebusd_vaillant.zip` was attached to 1.14.0. The zip is attached to 1.14.0 and 1.14.1
+  by hand; the workflow permission fix follows once the token may change workflow files.
+- `FaultHistory0` is optional (it shares its ID with `LastError` and is gone from the local
+  definitions); docs updated.
+- Entity IDs depend on the device areas in your Home Assistant (for example
+  `sensor.back_garden_heat_pump_last_fault`); the IDs in the 1.14.0 notes assume no area.
+
 ## 1.14.0
 
 New features. Everything below needs ebusd messages that are optional: when a topic never

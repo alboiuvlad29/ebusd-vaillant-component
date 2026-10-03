@@ -35,6 +35,13 @@ class NoiseSchedule:
         self._seen: dict[int, set[int]] = {}
         self._count: dict[int, int] = {}
 
+    def slot_count(self, message: str) -> int | None:
+        """Number of slots the controller reports for the day of *message*, if known."""
+        if not (match := _NAME.match(message)):
+            return None
+        day = next((i for i, d in enumerate(_DAYS) if d.lower() == match.group(1).lower()), None)
+        return self._count.get(day) if day is not None else None
+
     @property
     def known(self) -> bool:
         return bool(self._slots)

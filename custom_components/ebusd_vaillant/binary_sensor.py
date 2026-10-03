@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 from datetime import timedelta
 from typing import Any
 
@@ -35,6 +37,13 @@ from .discovery import (
     _get,
 )
 from .noise import NoiseSchedule
+
+# SilentTimer_<Day> holds one slot at a time (the slot index is an input of the read), so the
+# slots are requested one by one, spaced out to keep the bus quiet.
+NOISE_REQUEST_INTERVAL = 1.0
+NOISE_REFRESH = timedelta(hours=1)
+NOISE_DEFAULT_SLOTS = 3
+_DAY_MESSAGE = re.compile(r"^SilentTimer_[A-Za-z]+$")
 
 _TRUE = frozenset({"1", "on", "yes", "true"})
 _FALSE = frozenset({"0", "off", "no", "false"})
@@ -296,9 +305,19 @@ class EbusdNoiseReductionBinarySensor(BinarySensorEntity):
         self._schedule = NoiseSchedule()
         self._subscribed: dict[str, Any] = {}
         self._cancel_tick: Any = None
+        self._cancel_refresh: Any = None
+        self._request_task: asyncio.Task | None = None
+        self._request_again = False
 
     async def async_added_to_hass(self) -> None:
         await self._bind()
+        self._request_slots_soon()
+
+        @callback
+        def _refresh(_now: Any) -> None:
+            self._request_slots_soon()
+
+        self._cancel_refresh = async_track_time_interval(self.hass, _refresh, NOISE_REFRESH)
 
         # the state depends on the clock as well: re-evaluate every minute
         @callback
@@ -310,8 +329,44 @@ class EbusdNoiseReductionBinarySensor(BinarySensorEntity):
     async def async_update_config(self, config: DiscoveredNoiseSchedule) -> None:
         self._config = config
         if self.platform is not None:
+            known = set(self._subscribed)
             await self._bind()
+            if set(self._subscribed) != known:
+                self._request_slots_soon()
             self.async_write_ha_state()
+
+    @callback
+    def _request_slots_soon(self) -> None:
+        if self._request_task and not self._request_task.done():
+            self._request_again = True  # new days appeared while a pass was running
+            return
+        self._request_task = self.hass.async_create_background_task(
+            self._request_slots(), "ebusd noise reduction slots"
+        )
+
+    async def _request_slots(self) -> None:
+        self._request_again = True
+        while self._request_again:
+            self._request_again = False
+            await self._request_pass()
+
+    async def _request_pass(self) -> None:
+        """Read slot 0, then the other slots the day has, of every SilentTimer_<Day>."""
+        first = True
+        for cfg in self._config.topics:
+            message = cfg.read_topic.rsplit("/", 1)[-1]
+            if not _DAY_MESSAGE.match(message):
+                continue  # fixed-slot messages (SilentTimer_Monday0) need no request
+            if not first:
+                await asyncio.sleep(NOISE_REQUEST_INTERVAL)
+            first = False
+            await mqtt.async_publish(self.hass, f"{cfg.read_topic}/get", "0")
+            await asyncio.sleep(NOISE_REQUEST_INTERVAL)  # the answer carries the slot count
+            count = self._schedule.slot_count(message) or NOISE_DEFAULT_SLOTS
+            for index in range(1, count):
+                await mqtt.async_publish(self.hass, f"{cfg.read_topic}/get", str(index))
+                if index < count - 1:
+                    await asyncio.sleep(NOISE_REQUEST_INTERVAL)
 
     async def _bind(self) -> None:
         for cfg in self._config.topics:
@@ -354,6 +409,10 @@ class EbusdNoiseReductionBinarySensor(BinarySensorEntity):
     async def async_will_remove_from_hass(self) -> None:
         if self._cancel_tick:
             self._cancel_tick()
+        if self._cancel_refresh:
+            self._cancel_refresh()
+        if self._request_task:
+            self._request_task.cancel()
         for unsub in self._subscribed.values():
             unsub()
         self._subscribed.clear()
