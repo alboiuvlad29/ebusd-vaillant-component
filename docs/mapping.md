@@ -211,10 +211,10 @@ installer settings to be changed** they become number entities that write to the
 |---|---|
 | `RunDataCompressorSpeed`, `RunDataHighPressure`, `RunDataOverheatingActualValue`, `RunDataFan1Speed`, `RunDataEEVPositionAbs`, `RunDataBuildingCircuitFlow`, `RunDataHeatOutput`, `CurrentCompressorUtil` | Sensors on the heat pump device |
 | `HwcMode`, `CompHysteresisHeating`, `CompStartHeatingFrom`, `MaxRemainingDeltaP`, `BuildingCircuitPumpOutputHeating/Hwc`, `NoiseReductionLevel` | Diagnostic sensors (disabled by default except the noise reduction level) |
-| `LastError`, `FaultHistory0` to `FaultHistory9` | Sensor **Last fault** (`F.022`) with the history as attribute |
+| `LastError`, `FaultHistory1` to `FaultHistory9` (`FaultHistory0` is optional) | Sensor **Last fault** (`F.022`) with the history as attribute |
 | `Currenterror` / `CurrentError` | Diagnostic sensor, `none` when empty (disabled by default) |
 
-`LastError` is polled by ebusd. `FaultHistory0` to `FaultHistory9` only exist once
+`LastError` is polled by ebusd and is the newest entry. `FaultHistory0` to `FaultHistory9` (each one optional; `FaultHistory0` shares its ID with `LastError` and was dropped from the local definitions) only exist once
 requested, so the integration publishes an empty payload to `.../FaultHistory<n>/get` (one
 per second) at startup and whenever `LastError` changes. Empty and undecodable slots are
 skipped. The last fault seen is kept across restarts. A newer fault fires the
@@ -231,6 +231,11 @@ Repairs issue.
 | `SilentTimer_<Day>` | Binary sensor **Noise reduction active** (schedule and local time) |
 
 The broadcast is used while it is less than 15 minutes old, then the controller value.
+`SilentTimer_<Day>` holds one slot at a time (the slot index is an input of the read), so
+the integration publishes the slot number to `.../SilentTimer_<Day>/get` for slots 0 to
+`slotcount - 1`, one request per second, at startup and every hour. The sensor stays
+unknown until all slots of the current day have been seen. Fixed-slot messages named
+`SilentTimer_<Day><n>` are used as they are, without requests.
 Noise reduction has no on/off of its own: it is active whenever a time period of the
 schedule covers the current time.
 
