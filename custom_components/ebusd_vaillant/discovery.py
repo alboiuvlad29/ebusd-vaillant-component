@@ -510,7 +510,9 @@ def _entities_system(
         "manufacturer": manufacturer,
     }
     real = {
-        d: m for d, m in by_device.items() if not d.lower().startswith("scan.") and d != "broadcast"
+        d: m
+        for d, m in by_device.items()
+        if not d.lower().startswith("scan.") and d.lower() != "broadcast"
     }
     for device_id, msgs in real.items():
         if "GreenIQ" in msgs:

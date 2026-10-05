@@ -432,7 +432,7 @@ class EbusdCoordinator:
         device, msg_name = parts[1], parts[2]
         # .../get and .../set are requests (our own writes included), not values: ebusd
         # republishes the value topic itself once a write succeeded.
-        if device in ("global", "Broadcast") or msg.topic.endswith(("/get", "/set")):
+        if device == "global" or msg.topic.endswith(("/get", "/set")):
             return
 
         try:

@@ -116,6 +116,14 @@ def test_outdoor_temperature_sources():
     assert outdoor.broadcast.read_topic == "ebusd/broadcast/outsidetemp"
     # the broadcast pseudo device creates nothing on its own
     assert not [e for e in both if getattr(e, "device_id", "") == "broadcast"]
+    # ebusd publishes the circuit as "Broadcast"
+    upper = _analyze(
+        {"ctlv3": {**HWC, "OutsideTemp": _v(12.5)}, "Broadcast": {"Outsidetemp": _v(11.0)}},
+        "ebusd",
+    )
+    outdoor = _entry(DiscoveredOutdoorTemp, upper)[0]
+    assert outdoor.broadcast.read_topic == "ebusd/Broadcast/Outsidetemp"
+    assert not [e for e in upper if getattr(e, "device_id", "") == "Broadcast"]
 
 
 def test_fault_history_needs_last_error():
@@ -560,3 +568,22 @@ async def test_noise_schedule_completes_from_the_slot_answers(hass, mqtt_mock):
             "14:00-16:00",
             "18:30-24:00",
         ]
+
+
+@pytest.mark.parametrize("circuit", ["Broadcast", "broadcast"])
+def test_broadcast_messages_reach_the_cache(circuit):
+    from types import SimpleNamespace
+
+    from custom_components.ebusd_vaillant.coordinator import EbusdCoordinator
+
+    coord = EbusdCoordinator.__new__(EbusdCoordinator)
+    coord._by_device = {}
+    coord._known_entity_sigs = frozenset()
+    coord._analyze = lambda: []
+    coord._handle_message(
+        SimpleNamespace(topic=f"ebusd/{circuit}/Outsidetemp", payload='{"value": 11.5}')
+    )
+    assert coord._by_device[circuit]["Outsidetemp"] == {"value": 11.5}
+    assert coord.outdoor_temperature() == 11.5
+    coord._handle_message(SimpleNamespace(topic="ebusd/global/uptime", payload="1"))
+    assert "global" not in coord._by_device
