@@ -2,7 +2,7 @@
 
 Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream v1.0.0.
 
-## Unreleased
+## 1.14.2
 
 - Fix: the **Outside temperature** sensor never followed the passive eBUS broadcast. ebusd
   publishes the circuit as `Broadcast`, which the message handler dropped, so the sensor
