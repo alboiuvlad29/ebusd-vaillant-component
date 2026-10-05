@@ -581,9 +581,9 @@ def test_broadcast_messages_reach_the_cache(circuit):
     coord._known_entity_sigs = frozenset()
     coord._analyze = lambda: []
     coord._handle_message(
-        SimpleNamespace(topic=f"ebusd/{circuit}/Outsidetemp", payload='{"value": 11.5}')
+        SimpleNamespace(topic=f"ebusd/{circuit}/Outsidetemp", payload='{"value": {"value": 11.5}}')
     )
-    assert coord._by_device[circuit]["Outsidetemp"] == {"value": 11.5}
+    assert coord._by_device[circuit]["Outsidetemp"] == _v(11.5)
     assert coord.outdoor_temperature() == 11.5
     coord._handle_message(SimpleNamespace(topic="ebusd/global/uptime", payload="1"))
     assert "global" not in coord._by_device
