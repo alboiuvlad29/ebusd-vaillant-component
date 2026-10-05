@@ -7,7 +7,7 @@ Changes in this fork (alboiuvlad29/ebusd-vaillant-component) on top of upstream 
 - Fix: the **Outside temperature** sensor never followed the passive eBUS broadcast. ebusd
   publishes the circuit as `Broadcast`, which the message handler dropped, so the sensor
   always used the controller's `OutsideTemp` (polled every 6 to 7 minutes). The circuit
-  name is now matched case-insensitively.
+  name is no longer ignored, and the pseudo device exclusion in discovery is case-insensitive.
 
 ## 1.14.1
 

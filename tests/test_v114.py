@@ -568,3 +568,22 @@ async def test_noise_schedule_completes_from_the_slot_answers(hass, mqtt_mock):
             "14:00-16:00",
             "18:30-24:00",
         ]
+
+
+@pytest.mark.parametrize("circuit", ["Broadcast", "broadcast"])
+def test_broadcast_messages_reach_the_cache(circuit):
+    from types import SimpleNamespace
+
+    from custom_components.ebusd_vaillant.coordinator import EbusdCoordinator
+
+    coord = EbusdCoordinator.__new__(EbusdCoordinator)
+    coord._by_device = {}
+    coord._known_entity_sigs = frozenset()
+    coord._analyze = lambda: []
+    coord._handle_message(
+        SimpleNamespace(topic=f"ebusd/{circuit}/Outsidetemp", payload='{"value": 11.5}')
+    )
+    assert coord._by_device[circuit]["Outsidetemp"] == {"value": 11.5}
+    assert coord.outdoor_temperature() == 11.5
+    coord._handle_message(SimpleNamespace(topic="ebusd/global/uptime", payload="1"))
+    assert "global" not in coord._by_device
