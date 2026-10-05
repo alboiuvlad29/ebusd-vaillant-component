@@ -116,6 +116,14 @@ def test_outdoor_temperature_sources():
     assert outdoor.broadcast.read_topic == "ebusd/broadcast/outsidetemp"
     # the broadcast pseudo device creates nothing on its own
     assert not [e for e in both if getattr(e, "device_id", "") == "broadcast"]
+    # ebusd publishes the circuit as "Broadcast"
+    upper = _analyze(
+        {"ctlv3": {**HWC, "OutsideTemp": _v(12.5)}, "Broadcast": {"Outsidetemp": _v(11.0)}},
+        "ebusd",
+    )
+    outdoor = _entry(DiscoveredOutdoorTemp, upper)[0]
+    assert outdoor.broadcast.read_topic == "ebusd/Broadcast/Outsidetemp"
+    assert not [e for e in upper if getattr(e, "device_id", "") == "Broadcast"]
 
 
 def test_fault_history_needs_last_error():
